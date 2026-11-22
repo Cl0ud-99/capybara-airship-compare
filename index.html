@@ -4,9 +4,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>同题对比 · 戴飞行护目镜的水豚驾驶发条木飞艇</title>
-<meta name="description" content="同一个提示词，四个模型分别用 Three.js 写的单文件场景，并排对比。">
+<meta name="description" content="同一个提示词，五个模型分别用 Three.js 写的单文件场景，并排对比。">
 <meta property="og:title" content="同题对比 · 水豚发条飞艇">
-<meta property="og:description" content="同一个提示词，四个模型分别用 Three.js 写的单文件场景，并排对比。">
+<meta property="og:description" content="同一个提示词，五个模型分别用 Three.js 写的单文件场景，并排对比。">
 <style>
   :root { --bg:#15110d; --panel:#201a14; --line:#3b3026; --text:#f2e8d6; --muted:#b5a48a; --accent:#d0a348; }
   * { box-sizing: border-box; }
@@ -68,7 +68,7 @@
 </head>
 <body>
 <header class="top">
-  <h1>🦫 水豚发条飞艇 · 同题对比<small>同一个提示词，四个模型</small></h1>
+  <h1>🦫 水豚发条飞艇 · 同题对比<small>同一个提示词，五个模型</small></h1>
   <div class="bar">
     <span id="chips" style="display:inline-flex;gap:6px;flex-wrap:wrap"></span>
     <span class="seg" id="modes">
@@ -83,7 +83,7 @@
 <main id="grid"></main>
 <div class="toast" id="toast"></div>
 
-<script id="versions-data" type="application/json">[{"id": "claude", "name": "AWS Quick Smart", "model": "AWS Quick Smart", "effort": "", "color": "#d97757", "path": "v/claude/index.html", "download": "downloads/claude.zip"}, {"id": "gemini-neon", "name": "Gemini 4 Neon", "model": "capybara_airship_gemini_v2", "effort": "max", "color": "#4f8df5", "path": "v/gemini-neon/capybara_airship_gemini.html", "download": "downloads/gemini-neon.zip"}, {"id": "muse", "name": "Muse", "model": "capybara-clockwork-airship", "effort": "", "color": "#59b36b", "path": "v/muse/capybara-clockwork-airship.html", "download": "downloads/muse.zip"}, {"id": "deepseek", "name": "DeepSeek V4.1 Flash 1017", "model": "skybound-capybara-airship", "effort": "max", "color": "#8b6cf0", "path": "v/deepseek/capybara-airship.html", "download": "downloads/deepseek.zip"}]</script>
+<script id="versions-data" type="application/json">[{"id": "claude", "name": "AWS Quick Smart", "model": "AWS Quick Smart", "effort": "", "color": "#d97757", "path": "v/claude/index.html", "download": "downloads/claude.zip"}, {"id": "gemini-neon", "name": "Gemini 4 Neon", "model": "capybara_airship_gemini_v2", "effort": "max", "color": "#4f8df5", "path": "v/gemini-neon/capybara_airship_gemini.html", "download": "downloads/gemini-neon.zip"}, {"id": "muse", "name": "Muse", "model": "capybara-clockwork-airship", "effort": "", "color": "#59b36b", "path": "v/muse/capybara-clockwork-airship.html", "download": "downloads/muse.zip"}, {"id": "deepseek", "name": "DeepSeek V4.1 Flash 1017", "model": "skybound-capybara-airship", "effort": "max", "color": "#8b6cf0", "path": "v/deepseek/capybara-airship.html", "download": "downloads/deepseek.zip"}, {"id": "gpt-sol", "name": "GPT 6.1 Sol", "model": "gpt-sol", "effort": "max", "color": "#1fb8a6", "path": "v/gpt-sol/index.html", "download": "downloads/gpt-sol.zip"}]</script>
 <script>
 const PROMPT = "Create a single-file HTML using Three.js of a capybara wearing aviator goggles piloting a clockwork wooden airship, with orbit controls.";
 

@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#ede8da">
+  <meta name="description" content="水豚机长戴着飞行护目镜，驾驶木制发条飞艇。可旋转、缩放与巡览的离线 Three.js 场景。">
+  <title>水豚机长 · 发条飞艇</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #493c2c;
+      --muted: #8c806d;
+      --brass: #a47d42;
+      --cream: #faf6eb;
+      --line: rgba(125, 101, 65, .18);
+      font-family: "Segoe UI", "Microsoft YaHei", "PingFang SC", sans-serif;
+    }
+    * { box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; }
+    body {
+      color: var(--ink);
+      background: radial-gradient(ellipse at 52% 40%, #f8f3e6 0%, #eee9dc 48%, #dfded0 100%);
+      -webkit-font-smoothing: antialiased;
+      overscroll-behavior: none;
+    }
+    button { font: inherit; -webkit-tap-highlight-color: transparent; }
+    button:focus-visible {
+      outline: 2px solid #976e35;
+      outline-offset: 4px;
+    }
+    #canvas-container { position: fixed; inset: 0; overflow: hidden; }
+    #canvas-container canvas { display: block; width: 100%; height: 100%; touch-action: none; }
+    #canvas-container canvas:focus { outline: none; }
+    .masthead {
+      position: fixed;
+      z-index: 2;
+      left: clamp(24px, 3.3vw, 56px);
+      top: clamp(28px, 4.3vh, 48px);
+      pointer-events: none;
+      user-select: none;
+    }
+    .brand { display: flex; align-items: center; gap: 12px; color: var(--brass); }
+    .brand-mark { width: 38px; height: 38px; flex: none; }
+    .brand-name { font-size: 10px; font-weight: 650; letter-spacing: .25em; line-height: 1.6; }
+    .brand-name span { display: block; font-size: 8px; letter-spacing: .34em; font-weight: 500; opacity: .75; }
+    h1 {
+      margin: 24px 0 11px;
+      font-family: Georgia, "Noto Serif SC", "Songti SC", SimSun, serif;
+      font-size: clamp(34px, 3.3vw, 51px);
+      font-weight: 500;
+      letter-spacing: .03em;
+      line-height: 1.2;
+    }
+    .subtitle { margin: 0; font-size: 12px; letter-spacing: .15em; color: var(--muted); }
+    .flight-status {
+      position: fixed;
+      right: clamp(24px, 3.3vw, 56px);
+      top: clamp(34px, 4.7vh, 52px);
+      z-index: 2;
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      padding: 10px 15px;
+      border: 1px solid var(--line);
+      border-radius: 30px;
+      background: rgba(251, 248, 237, .45);
+      color: #7a725b;
+      font-size: 10px;
+      letter-spacing: .12em;
+      pointer-events: none;
+      user-select: none;
+    }
+    .status-dot { width: 5px; height: 5px; border-radius: 50%; background: #7e9163; box-shadow: 0 0 0 3px rgba(126, 145, 99, .1); }
+    body[data-paused="true"] .status-dot { background: #b39869; box-shadow: 0 0 0 3px rgba(179, 152, 105, .1); }
+    .toolbar {
+      position: fixed;
+      z-index: 3;
+      left: 50%;
+      bottom: max(34px, env(safe-area-inset-bottom));
+      transform: translateX(-50%);
+      display: flex;
+      align-items: center;
+      gap: 3px;
+      padding: 7px;
+      max-width: calc(100vw - 28px);
+      border: 1px solid rgba(126, 102, 69, .22);
+      border-radius: 17px;
+      background: rgba(252, 249, 239, .86);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      box-shadow: 0 6px 26px rgba(75, 61, 42, .07), inset 0 1px 0 rgba(255,255,255,.65);
+    }
+    .toolbar button {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 5px;
+      width: 57px;
+      min-height: 52px;
+      flex: 0 0 auto;
+      padding: 7px 5px;
+      border: 0;
+      border-radius: 10px;
+      background: transparent;
+      color: #887a64;
+      cursor: pointer;
+      font-size: 10px;
+      letter-spacing: .05em;
+      transition: color .18s ease, background .18s ease, transform .18s ease;
+    }
+    .toolbar button svg { width: 18px; height: 18px; flex: none; stroke-width: 1.5; }
+    .toolbar button:hover { background: rgba(181, 147, 94, .12); color: #73552e; }
+    .toolbar button:active { transform: translateY(1px); }
+    .toolbar button[aria-pressed="true"] { color: #74552f; background: #efe1c5; }
+    .toolbar-divider { width: 1px; height: 30px; flex: none; background: var(--line); margin: 0 6px; }
+    .interaction-hint {
+      position: fixed;
+      z-index: 2;
+      left: clamp(24px, 3.3vw, 56px);
+      bottom: 48px;
+      color: var(--muted);
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      font-size: 10px;
+      letter-spacing: .07em;
+      pointer-events: none;
+      user-select: none;
+    }
+    .interaction-hint svg { width: 17px; height: 20px; color: #a18d6f; }
+    .touch-hint { display: none; }
+    .edition {
+      position: fixed;
+      z-index: 2;
+      right: clamp(24px, 3.3vw, 56px);
+      bottom: 50px;
+      font-size: 9px;
+      color: #a1927a;
+      letter-spacing: .18em;
+      pointer-events: none;
+      user-select: none;
+    }
+    #loading-panel {
+      position: fixed;
+      z-index: 10;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      background: #ede8da;
+      transition: opacity .55s ease, visibility .55s ease;
+    }
+    .loading-content { text-align: center; }
+    .loading-emblem {
+      width: 68px;
+      height: 68px;
+      margin: 0 auto 22px;
+      display: grid;
+      place-items: center;
+      position: relative;
+      color: #a5834e;
+    }
+    .loading-emblem::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      border: 1px solid rgba(165, 131, 78, .18);
+      border-top-color: #a5834e;
+      border-radius: 50%;
+      animation: prepare-flight 1.8s linear infinite;
+    }
+    .loading-emblem svg { width: 35px; height: 35px; }
+    .loading-content p { margin: 0; font-size: 12px; color: #8b795f; letter-spacing: .16em; }
+    .loading-content small { display: block; margin-top: 14px; color: #b1a38c; font-size: 8px; letter-spacing: .25em; }
+    body[data-ready="true"] #loading-panel { opacity: 0; visibility: hidden; pointer-events: none; }
+    #error-panel {
+      position: fixed;
+      z-index: 12;
+      inset: 0;
+      align-items: center;
+      justify-content: center;
+      padding: 28px;
+      background: rgba(237, 232, 218, .97);
+    }
+    #error-panel:not([hidden]) { display: flex; }
+    .error-content { max-width: 400px; text-align: center; }
+    .error-content h2 { font: 500 25px Georgia, "Songti SC", SimSun, serif; margin: 0 0 16px; }
+    .error-content p { margin: 0; color: #85745c; font-size: 13px; line-height: 1.9; overflow-wrap: anywhere; }
+    noscript { position: fixed; z-index: 20; inset: 0; display: grid; place-items: center; padding: 30px; text-align: center; background: #ede8da; }
+    @keyframes prepare-flight { to { transform: rotate(360deg); } }
+    @media (max-width: 1050px) {
+      .interaction-hint { bottom: 115px; left: 50%; transform: translateX(-50%); white-space: nowrap; }
+      .edition { display: none; }
+    }
+    @media (max-width: 600px) {
+      .masthead { left: 24px; top: max(25px, env(safe-area-inset-top)); }
+      .brand { gap: 9px; }
+      .brand-mark { width: 29px; height: 29px; }
+      .brand-name { font-size: 8px; letter-spacing: .22em; }
+      .brand-name span { font-size: 6px; }
+      h1 { margin-top: 20px; margin-bottom: 10px; font-size: 32px; }
+      .subtitle { font-size: 10px; letter-spacing: .13em; }
+      .flight-status { top: max(28px, env(safe-area-inset-top)); right: 20px; padding: 8px 10px; gap: 7px; font-size: 8px; }
+      .toolbar { bottom: max(25px, env(safe-area-inset-bottom)); padding: 6px; border-radius: 15px; gap: 2px; }
+      .toolbar button { width: 47px; min-height: 50px; gap: 5px; font-size: 9px; }
+      .toolbar button svg { width: 17px; height: 17px; }
+      .toolbar-divider { margin: 0 4px; height: 28px; }
+      #fullscreen { display: none; }
+      .interaction-hint { bottom: 101px; font-size: 9px; }
+      .interaction-hint svg { width: 14px; height: 17px; }
+    }
+    @media (max-width: 360px) {
+      .masthead { left: 18px; }
+      h1 { font-size: 29px; }
+      .toolbar button { width: 42px; }
+      .flight-status { right: 15px; }
+    }
+    @media (pointer: coarse) {
+      .mouse-hint { display: none; }
+      .touch-hint { display: inline; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+    }
+  </style>
+</head>
+<body>
+  <main id="canvas-container" aria-label="戴飞行护目镜的水豚机长，驾驶一艘木制发条飞艇。拖动旋转视角，滚轮或双指缩放。"></main>
+
+  <header class="masthead">
+    <div class="brand">
+      <svg class="brand-mark" viewBox="0 0 40 40" fill="none" aria-hidden="true">
+        <circle cx="20" cy="20" r="18.5" stroke="currentColor" stroke-width=".7" opacity=".6"/>
+        <path d="M7.5 18c0-4.4 5.4-8 12.5-8s12.5 3.6 12.5 8S27.1 24 20 24 7.5 22.4 7.5 18Z" stroke="currentColor" stroke-width="1.1"/>
+        <path d="M12 14c2.3 1.2 4.9 1.8 8 1.8s5.7-.6 8-1.8M12 21l3 6h10l3-6M15 27l2 3h6l2-3M20 10v14M6 18h28" stroke="currentColor" stroke-width=".8"/>
+      </svg>
+      <div class="brand-name">CAPY<span>AERONAUTICS</span></div>
+    </div>
+    <h1>随风，慢慢飞。</h1>
+    <p class="subtitle">水豚机长的发条飞艇</p>
+  </header>
+
+  <aside class="flight-status" aria-live="polite">
+    <span class="status-dot" aria-hidden="true"></span>
+    <span id="status-label">晴空巡航</span>
+  </aside>
+
+  <nav class="toolbar" aria-label="场景视角与飞行控制">
+    <button id="view-wide" type="button" aria-pressed="true" title="全景视角">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M4 9V4h5m6 0h5v5m0 6v5h-5m-6 0H4v-5" stroke-linecap="round" stroke-linejoin="round"/><circle cx="12" cy="12" r="3.4"/></svg>
+      <span class="button-label">全景</span>
+    </button>
+    <button id="view-pilot" type="button" aria-pressed="false" title="看看水豚机长">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M5 9V6.7A2.7 2.7 0 0 1 7.7 4h8.6A2.7 2.7 0 0 1 19 6.7V9M4 9h16v5a6 6 0 0 1-6 6h-4a6 6 0 0 1-6-6V9Z" stroke-linejoin="round"/><circle cx="8" cy="11.5" r="2.5"/><circle cx="16" cy="11.5" r="2.5"/><path d="M10.5 11.5h3M10 17h4" stroke-linecap="round"/></svg>
+      <span class="button-label">机长</span>
+    </button>
+    <button id="view-detail" type="button" aria-pressed="false" title="看看发条机械">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="m10 3-.5 2.1-1.6.9-2.1-.6-2 3.4 1.5 1.6v1.8l-1.5 1.6 2 3.4 2.1-.6 1.6.9L10 20h4l.5-2.1 1.6-.9 2.1.6 2-3.4-1.5-1.6v-1.8l1.5-1.6-2-3.4-2.1.6-1.6-.9L14 3h-4Z" stroke-linejoin="round"/><circle cx="12" cy="11.5" r="3"/></svg>
+      <span class="button-label">发条</span>
+    </button>
+    <span class="toolbar-divider" aria-hidden="true"></span>
+    <button id="pause-flight" type="button" aria-pressed="false" title="暂停飞行动画">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M8 5v14M16 5v14" stroke-width="2.5" stroke-linecap="round"/></svg>
+      <span class="button-label">暂停</span>
+    </button>
+    <button id="auto-orbit" type="button" aria-pressed="false" title="自动旋转巡览">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><ellipse cx="12" cy="12" rx="10" ry="4.5" transform="rotate(-25 12 12)"/><circle cx="12" cy="12" r="3"/><path d="m19 4 2 1.8L18.5 7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <span class="button-label">巡览</span>
+    </button>
+    <button id="reset-view" type="button" title="恢复全景视角，双击场景也可归位">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M4 10a8 8 0 1 1 1 7M4 5v5h5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <span class="button-label">归位</span>
+    </button>
+    <button id="fullscreen" type="button" title="进入或退出全屏">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M8 4H4v4m12-4h4v4M4 16v4h4m8 0h4v-4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <span class="button-label">全屏</span>
+    </button>
+  </nav>
+
+  <div class="interaction-hint" aria-hidden="true">
+    <svg viewBox="0 0 18 22" fill="none" stroke="currentColor"><rect x="3.5" y="1.5" width="11" height="17" rx="5.5"/><path d="M9 5v3M6 21h6" stroke-linecap="round"/></svg>
+    <span class="mouse-hint">拖动旋转 · 滚轮缩放</span>
+    <span class="touch-hint">单指旋转 · 双指缩放</span>
+  </div>
+  <div class="edition">MR. CAPY · 航记 001</div>
+
+  <div id="loading-panel" role="status" aria-label="场景正在加载">
+    <div class="loading-content">
+      <div class="loading-emblem">
+        <svg viewBox="0 0 40 40" fill="none" stroke="currentColor" aria-hidden="true"><path d="M5 16c0-5 6.7-9 15-9s15 4 15 9-6.7 7-15 7S5 21 5 16Z"/><path d="M10 21l5 9h10l5-9M15 30l2 3h6l2-3M20 7v16M5 16h30" stroke-width=".9"/></svg>
+      </div>
+      <p>飞艇准备起航…</p>
+      <small>A LITTLE SLOWER, A LITTLE HAPPIER.</small>
+    </div>
+  </div>
+  <div id="error-panel" hidden role="alert">
+    <div class="error-content">
+      <h2>飞艇暂时无法起航</h2>
+      <p id="error-message">请使用支持 WebGL 的现代浏览器打开此文件。</p>
+    </div>
+  </div>
+  <noscript>请在浏览器中启用 JavaScript，然后重新打开这份飞艇航记。</noscript>
+  <script type="module">
+__RUNTIME_JS__
+__CONTROLS_JS__
+__CAPYBARA_JS__
+__SCENE_JS__
+  </script>
+</body>
+</html>
