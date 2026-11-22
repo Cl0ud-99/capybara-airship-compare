@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>同题对比 · 戴飞行护目镜的水豚驾驶发条木飞艇</title>
+<meta name="description" content="同一个提示词，四个模型分别用 Three.js 写的单文件场景，并排对比。">
+<meta property="og:title" content="同题对比 · 水豚发条飞艇">
+<meta property="og:description" content="同一个提示词，四个模型分别用 Three.js 写的单文件场景，并排对比。">
+<style>
+  :root { --bg:#15110d; --panel:#201a14; --line:#3b3026; --text:#f2e8d6; --muted:#b5a48a; --accent:#d0a348; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text);
+    font-family: system-ui, -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif; }
+  body { display: flex; flex-direction: column; }
+  header.top { padding: 14px 20px 10px; border-bottom: 1px solid var(--line); display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center; }
+  h1 { margin: 0; font-size: 18px; font-weight: 650; letter-spacing: .3px; }
+  h1 small { color: var(--muted); font-weight: 400; font-size: 13px; margin-left: 8px; }
+  .prompt { flex-basis: 100%; margin: 0; font-size: 13px; color: var(--muted); }
+  .prompt code { color: var(--text); background: #2a221a; border: 1px solid var(--line); padding: 2px 7px; border-radius: 6px;
+    font-family: ui-monospace, Consolas, monospace; font-size: 12.5px; }
+  .bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-left: auto; }
+  .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+  .seg button { border: 0; border-right: 1px solid var(--line); border-radius: 0; }
+  .seg button:last-child { border-right: 0; }
+  button, .btn { background: var(--panel); color: var(--text); border: 1px solid var(--line); border-radius: 8px;
+    padding: 6px 11px; font: inherit; font-size: 13px; cursor: pointer; text-decoration: none; line-height: 1.2; }
+  button:hover, .btn:hover { border-color: var(--accent); }
+  button.on { background: var(--accent); color: #1b140c; font-weight: 600; }
+  .chip { display: inline-flex; align-items: center; gap: 6px; }
+  .chip .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--c); }
+  .chip.off { opacity: .45; }
+  .chip.off .dot { background: transparent; box-shadow: inset 0 0 0 1.5px var(--c); }
+  main { flex: 1; min-height: 0; display: grid; gap: 10px; padding: 10px; grid-template-columns: repeat(var(--cols, 3), minmax(0, 1fr)); grid-auto-rows: minmax(0, 1fr); }
+  .pane { display: flex; flex-direction: column; min-height: 0; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; background: #000; }
+  .pane[hidden] { display: none; }
+  .pane > header { display: flex; align-items: center; gap: 8px; padding: 7px 10px; background: var(--panel); border-bottom: 2px solid var(--c); font-size: 13px; }
+  .pane > header .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--c); flex: none; }
+  .pane > header .model { color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .pane > header .sp { flex: 1; }
+  .pane > header .tag { color: var(--muted); border: 1px solid var(--line); border-radius: 6px; padding: 1px 6px; font-size: 12px; white-space: nowrap; }
+  .pane > header button, .pane > header a { padding: 3px 8px; font-size: 13px; }
+  .frame { flex: 1; min-height: 0; position: relative; }
+  iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; display: block; background: #000; }
+  .pane:fullscreen > header { display: none; }
+  .toast { position: fixed; left: 50%; bottom: 22px; transform: translateX(-50%) translateY(20px); opacity: 0; transition: .25s;
+    background: var(--accent); color: #1b140c; padding: 8px 16px; border-radius: 20px; font-size: 13px; font-weight: 600; pointer-events: none; }
+  .toast.show { opacity: 1; transform: translateX(-50%); }
+  @media (max-width: 860px) {
+    html, body { height: 100dvh; }
+    header.top { padding: 10px 12px 8px; gap: 8px 10px; }
+    h1 { font-size: 16px; }
+    h1 small { display: block; margin: 2px 0 0; font-size: 12px; }
+    .prompt { font-size: 12px; }
+    .prompt code { display: block; margin-top: 4px; white-space: normal; }
+    .bar { margin-left: 0; gap: 6px; }
+    .bar button, .bar .btn { padding: 7px 10px; }
+    main { grid-template-columns: 1fr !important; grid-auto-rows: auto; overflow-y: auto; padding: 8px; gap: 14px; }
+    /* side mode on phones: stacked panes, short enough to leave room for scrolling past them */
+    .pane { min-height: 62vh; }
+    .pane > header { padding: 9px 10px; }
+    .pane > header button, .pane > header a { padding: 6px 10px; }
+    /* single mode on phones: one pane fills the screen */
+    body.tab .pane { min-height: 0; height: 100%; }
+    body.tab main { overflow: hidden; }
+  }
+</style>
+</head>
+<body>
+<header class="top">
+  <h1>🦫 水豚发条飞艇 · 同题对比<small>同一个提示词，四个模型</small></h1>
+  <div class="bar">
+    <span id="chips" style="display:inline-flex;gap:6px;flex-wrap:wrap"></span>
+    <span class="seg" id="modes">
+      <button data-mode="side">并排</button>
+      <button data-mode="tab">单个</button>
+    </span>
+    <button id="share">🔗 复制分享链接</button>
+    <a class="btn" href="downloads/all-sources.zip" download>⬇ 全部源码</a>
+  </div>
+  <p class="prompt">提示词：<code id="prompt"></code></p>
+</header>
+<main id="grid"></main>
+<div class="toast" id="toast"></div>
+
+<script id="versions-data" type="application/json">[{"id": "claude", "name": "Claude", "model": "Claude (this session)", "effort": "", "color": "#d97757", "path": "v/claude/index.html", "download": "downloads/claude.zip"}, {"id": "gemini-neon", "name": "Gemini 4 Neon", "model": "capybara_airship_gemini_v2", "effort": "max", "color": "#4f8df5", "path": "v/gemini-neon/capybara_airship_gemini.html", "download": "downloads/gemini-neon.zip"}, {"id": "muse", "name": "Muse", "model": "capybara-clockwork-airship", "effort": "", "color": "#59b36b", "path": "v/muse/capybara-clockwork-airship.html", "download": "downloads/muse.zip"}, {"id": "deepseek", "name": "DeepSeek V4.1 Flash 1017", "model": "skybound-capybara-airship", "effort": "max", "color": "#8b6cf0", "path": "v/deepseek/capybara-airship.html", "download": "downloads/deepseek.zip"}]</script>
+<script>
+const PROMPT = "Create a single-file HTML using Three.js of a capybara wearing aviator goggles piloting a clockwork wooden airship, with orbit controls.";
+
+const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const $ = s => document.querySelector(s);
+$('#prompt').textContent = PROMPT;
+
+let VERSIONS = [];
+try { VERSIONS = JSON.parse($('#versions-data').textContent); } catch (e) {}
+if (!Array.isArray(VERSIONS) || !VERSIONS.length) {
+  $('#grid').innerHTML = '<div style="grid-column:1/-1;padding:40px;text-align:center;color:var(--muted);line-height:1.9">' +
+    '这是模板文件（site_src/index.html），还没有填入版本数据。<br>' +
+    '请先在 Git Bash 运行 <code>python build.py</code>，然后打开生成的 <code>site/index.html</code>。</div>';
+  throw new Error('VERSIONS not injected — run build.py');
+}
+
+// ---- state from URL: ?mode=side|tab&v=id1,id2
+const q = new URLSearchParams(location.search);
+const ids = VERSIONS.map(v => v.id);
+const narrow = matchMedia('(max-width: 860px)').matches;
+// phones default to one scene at a time: three WebGL scenes at once is heavy, and stacked 3D panes swallow scroll gestures
+let mode = q.get('mode') === 'tab' || (!q.get('mode') && narrow) ? 'tab' : 'side';
+let shown = (q.get('v') || '').split(',').filter(id => ids.includes(id));
+if (!shown.length) shown = mode === 'tab' ? [ids[0]] : ids.slice();
+
+// ---- panes are built once so iframes never reload on layout changes
+const grid = $('#grid'), panes = {};
+for (const v of VERSIONS) {
+  const el = document.createElement('section');
+  el.className = 'pane';
+  el.style.setProperty('--c', v.color);
+  el.innerHTML = `
+    <header>
+      <span class="dot"></span><b>${esc(v.name)}</b>${v.effort ? `<span class="tag">推理强度 ${esc(v.effort)}</span>` : ''}<span class="sp"></span>
+      <button data-a="reload" title="重新加载">⟳</button>
+      <button data-a="fs" title="全屏">⛶</button>
+      <a class="btn" href="${esc(v.download)}" download title="下载这一版源码">⬇</a>
+      <a class="btn" href="${esc(v.path)}" target="_blank" rel="noopener" title="新窗口单独打开（可单独分享）">↗</a>
+    </header>
+    <div class="frame"><iframe title="${esc(v.name)}" allow="fullscreen; xr-spatial-tracking" allowfullscreen></iframe></div>`;
+  const frame = el.querySelector('iframe');
+  el.querySelector('[data-a=reload]').onclick = () => { frame.src = v.path; };
+  el.querySelector('[data-a=fs]').onclick = () => (el.requestFullscreen ? el.requestFullscreen() : el.webkitRequestFullscreen && el.webkitRequestFullscreen());
+  grid.appendChild(el);
+  panes[v.id] = { el, frame, v, loaded: false };
+}
+
+// ---- chips: toggle visibility in side mode, select one in tab mode
+const chips = $('#chips');
+for (const v of VERSIONS) {
+  const b = document.createElement('button');
+  b.className = 'chip';
+  b.style.setProperty('--c', v.color);
+  b.dataset.id = v.id;
+  b.innerHTML = `<span class="dot"></span>${esc(v.name)}`;
+  b.onclick = () => {
+    if (mode === 'tab') shown = [v.id];
+    else if (shown.includes(v.id)) { if (shown.length > 1) shown = shown.filter(x => x !== v.id); }
+    else shown = ids.filter(x => x === v.id || shown.includes(x));
+    render();
+  };
+  chips.appendChild(b);
+}
+document.querySelectorAll('#modes button').forEach(b => b.onclick = () => {
+  mode = b.dataset.mode;
+  shown = mode === 'tab' ? [shown[0]] : ids.slice();
+  render();
+});
+
+function render() {
+  grid.style.setProperty('--cols', shown.length <= 3 ? shown.length : Math.ceil(shown.length / 2));
+  for (const id of ids) {
+    const p = panes[id], on = shown.includes(id);
+    p.el.hidden = !on;
+    if (on && !p.loaded) { p.frame.src = p.v.path; p.loaded = true; }   // lazy-load on first show
+  }
+  chips.querySelectorAll('.chip').forEach(c => c.classList.toggle('off', !shown.includes(c.dataset.id)));
+  document.querySelectorAll('#modes button').forEach(b => b.classList.toggle('on', b.dataset.mode === mode));
+  document.body.classList.toggle('tab', mode === 'tab');
+  history.replaceState(null, '', shareUrl());
+}
+
+function shareUrl() {
+  const u = new URL(location.href);
+  u.search = '';
+  if (mode === 'tab') u.searchParams.set('mode', 'tab');
+  if (mode === 'tab' || shown.length !== ids.length) u.searchParams.set('v', shown.join(','));
+  return u.toString();
+}
+
+function toast(msg) {
+  const t = $('#toast'); t.textContent = msg; t.classList.add('show');
+  clearTimeout(toast.h); toast.h = setTimeout(() => t.classList.remove('show'), 1800);
+}
+$('#share').onclick = async () => {
+  const url = shareUrl();
+  try { await navigator.clipboard.writeText(url); toast('链接已复制'); }
+  catch (e) { prompt('复制这个链接：', url); }
+};
+
+render();
+</script>
+</body>
+</html>

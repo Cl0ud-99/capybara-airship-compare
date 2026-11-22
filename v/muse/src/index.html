@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="color-scheme" content="light dark" />
+<link rel="icon" href="data:," />
+<title>Capybara Clockwork Airship</title>
+<style>
+  :root{
+    --ink:#1d2a2e; --paper:rgba(255,252,244,.92); --paper-border:rgba(29,42,46,.14);
+    --accent:#b7791f; --btn-bg:#1d2a2e; --btn-ink:#fff8ea;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{ --ink:#f2ead8; --paper:rgba(22,30,33,.92); --paper-border:rgba(255,255,255,.16); --btn-bg:#f2ead8; --btn-ink:#1d2a2e; }
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{margin:0;font-family: Georgia, "Times New Roman", serif; color:var(--ink); overflow:hidden; background:#87b5c9;}
+  #scene{position:fixed; inset:0; width:100%; height:100%; display:block; touch-action:none;}
+  .caption{
+    position:fixed; left:16px; top:16px; max-width:min(340px, calc(100vw - 32px));
+    background:var(--paper); border:1px solid var(--paper-border); border-radius:14px;
+    padding:12px 14px 11px; backdrop-filter: blur(8px);
+  }
+  .caption h1{font-size:20px; line-height:1.1; margin:0 0 5px; font-weight:700; letter-spacing:-.01em;}
+  .caption p{margin:0; font-family: system-ui, -apple-system, Segoe UI, sans-serif; font-size:13.5px; line-height:1.45; opacity:.88;}
+  .bar{
+    position:fixed; left:50%; transform:translateX(-50%); bottom:16px;
+    display:flex; gap:8px; flex-wrap:wrap; justify-content:center; width:max-content; max-width:calc(100vw - 24px);
+  }
+  .bar button{
+    min-height:44px; min-width:44px; padding:10px 16px; border-radius:999px; border:1px solid var(--paper-border);
+    background:var(--paper); color:var(--ink); font-family:system-ui,-apple-system,Segoe UI,sans-serif; font-size:14px; font-weight:600;
+    cursor:pointer; backdrop-filter: blur(8px);
+  }
+  .bar button.primary{background:var(--btn-bg); color:var(--btn-ink); border-color:transparent;}
+  .bar button:focus-visible{outline:3px solid var(--accent); outline-offset:2px;}
+  .hint{
+    position:fixed; right:16px; top:16px; background:var(--paper); border:1px solid var(--paper-border);
+    border-radius:999px; padding:8px 12px; font-family:system-ui,sans-serif; font-size:12.5px; backdrop-filter: blur(8px);
+  }
+  @media (max-width:560px){ .hint{display:none} .caption h1{font-size:18px} .caption{padding:10px 12px} }
+  #err{
+    position:fixed; inset:auto 12px 76px 12px; display:none; background:#7a1f1f; color:#fff; padding:12px 14px;
+    border-radius:10px; font-family:ui-monospace,monospace; font-size:13px; z-index:10; white-space:pre-wrap;
+  }
+</style>
+</head>
+<body>
+<canvas id="scene" aria-label="Interactive 3D scene: a capybara wearing aviator goggles piloting a clockwork wooden airship. Drag to orbit, scroll or pinch to zoom."></canvas>
+
+<div class="caption">
+  <h1>The Clockwork Capybara</h1>
+  <p>Captain whiskers, goggles down, paws on the wheel — piloting her brass-geared wooden airship above the clouds. The propeller spins, the gears turn, and steam puffs from the little stack.</p>
+</div>
+<div class="hint">Drag to orbit · Scroll to zoom · Right-drag to pan</div>
+
+<div class="bar" role="toolbar" aria-label="Scene controls">
+  <button id="btnReset" class="primary" type="button">⟲ &nbsp;Reset view</button>
+  <button id="btnRotate" type="button" aria-pressed="false">Auto-orbit: Off</button>
+  <button id="btnMotion" type="button" aria-pressed="true">Motion: On</button>
+</div>
+<div id="err" role="alert"></div>
+
+<script src="three-r186.min.js"></script>
+<script src="main.js"></script>
+</body>
+</html>

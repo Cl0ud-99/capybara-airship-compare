@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="theme-color" content="#e7b985" />
+<meta name="description" content="An interactive 3D capybara in aviator goggles, piloting a clockwork wooden airship through a golden-hour sky." />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='30' fill='%23e7b985'/%3E%3Ccircle cx='32' cy='32' r='17' fill='none' stroke='%23a9712f' stroke-width='4'/%3E%3Ccircle cx='32' cy='32' r='6' fill='%23c38f46'/%3E%3C/svg%3E" />
+<title>Skybound Capybara — A Clockwork Airship</title>
+<!-- Three.js r170 + OrbitControls · MIT License · Copyright 2010-2024 Three.js Authors · https://threejs.org -->
+<style>
+  :root {
+    --ink: #3d291c;
+    --ink-soft: rgba(61, 41, 28, .72);
+    --paper: #fff1d5;
+    --brass: #b8873f;
+    --rust: #913c2b;
+    --serif: "Palatino Linotype", "Book Antiqua", Palatino, Georgia, serif;
+    --sans: "Trebuchet MS", "Gill Sans", "Segoe UI", sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; }
+  body {
+    background: #e8b982;
+    color: var(--ink);
+    font-family: var(--sans);
+    -webkit-font-smoothing: antialiased;
+  }
+  #stage {
+    position: fixed; inset: 0;
+    width: 100%; height: 100%;
+    display: block;
+    touch-action: none;
+    cursor: grab;
+    outline: none;
+  }
+  #stage:active { cursor: grabbing; }
+
+  .hud {
+    position: fixed; inset: 0;
+    pointer-events: none;
+    z-index: 3;
+    overflow: hidden;
+    padding: max(22px, env(safe-area-inset-top)) max(22px, env(safe-area-inset-right)) max(22px, env(safe-area-inset-bottom)) max(22px, env(safe-area-inset-left));
+  }
+  .hud::after {
+    content: "";
+    position: absolute; inset: 14px;
+    border: 1px solid rgba(76, 48, 29, .16);
+    border-radius: 2px;
+    pointer-events: none;
+  }
+  .veil {
+    position: absolute; inset: 0; pointer-events: none;
+    background:
+      linear-gradient(180deg, rgba(34, 56, 72, .13) 0%, rgba(34, 56, 72, 0) 24%, rgba(34, 56, 72, 0) 68%, rgba(87, 49, 24, .16) 100%),
+      radial-gradient(ellipse at 50% 43%, rgba(255, 245, 217, 0) 42%, rgba(85, 50, 26, .15) 100%);
+    mix-blend-mode: multiply;
+  }
+
+  .masthead {
+    position: absolute;
+    top: clamp(31px, 5vw, 65px);
+    left: clamp(31px, 5.2vw, 78px);
+    width: min(580px, 62vw);
+    animation: rise .9s cubic-bezier(.2,.8,.2,1) both;
+  }
+  .kicker {
+    display: flex; align-items: center; gap: 11px;
+    font-size: 9.5px; font-weight: 700;
+    letter-spacing: .28em;
+    text-transform: uppercase;
+    color: rgba(57, 36, 23, .68);
+  }
+  .kicker::before {
+    content: ""; display: block;
+    width: 28px; height: 1px;
+    background: var(--rust);
+    opacity: .7;
+  }
+  h1 {
+    margin: 14px 0 0;
+    font-family: var(--serif);
+    font-weight: 400;
+    font-size: clamp(47px, 6.8vw, 94px);
+    line-height: .87;
+    letter-spacing: -.045em;
+    color: #3d2719;
+    text-shadow: 0 2px 30px rgba(255, 243, 213, .42);
+  }
+  h1 em {
+    display: block;
+    margin-left: .54em;
+    font-style: italic;
+    font-weight: 400;
+    color: #8c3828;
+    letter-spacing: -.035em;
+    text-shadow: 0 3px 20px rgba(255, 226, 178, .35);
+  }
+  .subtitle {
+    margin: 19px 0 0 3px;
+    max-width: 310px;
+    font-family: var(--serif);
+    font-size: 13px;
+    line-height: 1.55;
+    font-style: italic;
+    letter-spacing: .015em;
+    color: rgba(61, 39, 23, .7);
+  }
+
+  .spec {
+    position: absolute;
+    top: clamp(34px, 5.2vw, 68px);
+    right: clamp(35px, 5.4vw, 80px);
+    display: grid;
+    grid-template-columns: auto auto;
+    gap: 7px 18px;
+    align-items: baseline;
+    text-align: right;
+    color: rgba(56, 35, 22, .62);
+    animation: rise 1s .12s cubic-bezier(.2,.8,.2,1) both;
+  }
+  .spec span {
+    font-size: 8px;
+    font-weight: 700;
+    letter-spacing: .24em;
+    text-transform: uppercase;
+    opacity: .8;
+  }
+  .spec strong {
+    font-family: var(--serif);
+    font-weight: 400;
+    font-size: 12px;
+    letter-spacing: .04em;
+    color: rgba(56, 35, 22, .88);
+  }
+  .spec .rule {
+    grid-column: 1 / -1;
+    height: 1px;
+    width: 100%;
+    margin: 4px 0 2px;
+    background: linear-gradient(90deg, transparent, rgba(70, 43, 25, .25));
+  }
+
+  .plate {
+    position: absolute;
+    left: clamp(33px, 5.4vw, 80px);
+    bottom: clamp(28px, 4vw, 53px);
+    display: flex; align-items: center; gap: 12px;
+    color: rgba(56, 35, 22, .62);
+    animation: rise 1s .22s cubic-bezier(.2,.8,.2,1) both;
+  }
+  .plate .no {
+    font-family: var(--serif);
+    font-style: italic;
+    font-size: 29px;
+    line-height: 1;
+    color: rgba(61, 37, 21, .78);
+  }
+  .plate .line { width: 31px; height: 1px; background: rgba(74, 44, 25, .38); }
+  .plate .label {
+    font-size: 8px; font-weight: 700;
+    letter-spacing: .25em; line-height: 1.6;
+    text-transform: uppercase;
+  }
+  .plate .label b { display: block; font-weight: 700; color: rgba(56, 35, 22, .84); }
+
+  .hint {
+    position: absolute;
+    left: 50%; bottom: clamp(24px, 3.4vw, 42px);
+    transform: translateX(-50%);
+    display: flex; align-items: center; gap: 10px;
+    padding: 9px 17px 9px 13px;
+    border: 1px solid rgba(85, 51, 28, .21);
+    border-radius: 100px;
+    background: rgba(255, 242, 215, .54);
+    -webkit-backdrop-filter: blur(12px);
+    backdrop-filter: blur(12px);
+    box-shadow: 0 8px 30px rgba(94, 54, 27, .10), inset 0 1px 0 rgba(255,255,255,.38);
+    white-space: nowrap;
+    font-size: 8.5px;
+    font-weight: 700;
+    letter-spacing: .19em;
+    text-transform: uppercase;
+    color: rgba(56, 34, 21, .68);
+    animation: rise 1s .34s cubic-bezier(.2,.8,.2,1) both;
+  }
+  .mouse {
+    width: 14px; height: 20px;
+    border: 1.3px solid rgba(72, 43, 25, .55);
+    border-radius: 8px;
+    position: relative;
+    flex: none;
+  }
+  .mouse::before {
+    content: "";
+    position: absolute;
+    top: 3px; left: 50%;
+    width: 1.5px; height: 4px;
+    background: rgba(72, 43, 25, .6);
+    border-radius: 1px;
+    transform: translateX(-50%);
+    animation: wheel 1.8s ease-in-out infinite;
+  }
+  .hint .sep { width: 1px; height: 11px; background: rgba(76, 46, 26, .2); }
+  .hint .drag { letter-spacing: .21em; }
+  .hint .zoom { opacity: .72; letter-spacing: .14em; }
+
+  .corner-note {
+    position: absolute;
+    right: clamp(35px, 5.4vw, 80px);
+    bottom: clamp(30px, 4vw, 54px);
+    font-size: 8px;
+    font-weight: 700;
+    letter-spacing: .24em;
+    text-transform: uppercase;
+    color: rgba(56, 35, 22, .5);
+    text-align: right;
+    line-height: 1.75;
+    animation: rise 1s .4s cubic-bezier(.2,.8,.2,1) both;
+  }
+
+  .loader {
+    position: fixed; inset: 0; z-index: 20;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    background:
+      radial-gradient(ellipse at 50% 38%, rgba(255, 245, 218, .98) 0%, rgba(244, 211, 166, .96) 35%, rgba(203, 146, 98, .98) 76%, #8d5c3e 100%);
+    color: #52351f;
+    text-align: center;
+    transition: opacity .8s ease, visibility .8s ease;
+  }
+  .loader.is-hidden { opacity: 0; visibility: hidden; pointer-events: none; }
+  .gear-loader {
+    width: 70px; height: 70px;
+    border: 7px dotted rgba(138, 87, 42, .8);
+    border-radius: 50%;
+    position: relative;
+    animation: spin 7s linear infinite;
+    filter: drop-shadow(0 5px 12px rgba(95, 55, 25, .18));
+  }
+  .gear-loader::before {
+    content: "";
+    position: absolute; inset: 9px;
+    border-radius: 50%;
+    border: 4px solid #f7dfaf;
+    border-right-color: rgba(126, 76, 34, .9);
+    animation: spin 1.7s linear infinite reverse;
+  }
+  .gear-loader::after {
+    content: "";
+    position: absolute; width: 12px; height: 12px;
+    left: 50%; top: 50%;
+    transform: translate(-50%, -50%);
+    border-radius: 50%;
+    background: #c38f46;
+    box-shadow: 0 0 0 3px rgba(255, 242, 207, .55);
+  }
+  .loader p {
+    margin: 24px 0 0;
+    font-family: var(--serif);
+    font-size: 20px;
+    font-style: italic;
+    letter-spacing: .01em;
+  }
+  .loader small {
+    margin-top: 9px;
+    font-size: 8px;
+    font-weight: 700;
+    letter-spacing: .3em;
+    text-transform: uppercase;
+    opacity: .54;
+  }
+  .loader .error {
+    max-width: 380px;
+    margin-top: 22px;
+    font-family: var(--sans);
+    font-size: 12px;
+    font-style: normal;
+    line-height: 1.6;
+    color: #6f2d24;
+  }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+  @keyframes rise { from { opacity: 0; transform: translateY(13px); } to { opacity: 1; transform: translateY(0); } }
+  @keyframes wheel { 0%, 100% { transform: translate(-50%, 0); opacity: .65; } 50% { transform: translate(-50%, 3px); opacity: .25; } }
+
+  @media (max-width: 760px) {
+    .hud::after { inset: 9px; }
+    .masthead { width: 82vw; top: 27px; left: 26px; }
+    h1 { font-size: clamp(45px, 13.2vw, 66px); }
+    h1 em { margin-left: .38em; }
+    .subtitle { max-width: 255px; margin-top: 14px; font-size: 12px; }
+    .spec { display: none; }
+    .plate { left: 27px; bottom: 26px; }
+    .corner-note { display: none; }
+    .hint { bottom: 78px; padding: 8px 14px 8px 11px; font-size: 7.5px; letter-spacing: .15em; }
+    .hint .sep, .hint .zoom { display: none; }
+  }
+  @media (max-height: 570px) {
+    .subtitle, .plate, .corner-note { display: none; }
+    .hint { bottom: 23px; }
+    h1 { font-size: 12vh; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .masthead, .spec, .plate, .hint, .corner-note { animation-duration: .01ms; }
+    .gear-loader, .gear-loader::before { animation-duration: 12s; }
+  }
+</style>
+</head>
+<body>
+  <canvas id="stage" aria-label="Interactive 3D scene of a capybara wearing aviator goggles and piloting a clockwork wooden airship. Drag to orbit, scroll to zoom."></canvas>
+
+  <div class="hud">
+    <div class="veil"></div>
+
+    <header class="masthead">
+      <div class="kicker">Aeronautics Gazette <span aria-hidden="true">·</span> Plate VII</div>
+      <h1>Skybound<em>Capybara</em></h1>
+      <p class="subtitle">A clockwork airship, bound for the golden hour — one very calm pilot at the helm.</p>
+    </header>
+
+    <div class="spec" aria-hidden="true">
+      <span>Vessel</span><strong>No. 07 “Marigold”</strong>
+      <span>Altitude</span><strong>2,480 ft</strong>
+      <div class="rule"></div>
+      <span>Wind</span><strong>WNW · 8 knots</strong>
+      <span>Condition</span><strong>Fair skies</strong>
+    </div>
+
+    <div class="plate" aria-hidden="true">
+      <span class="no">07</span>
+      <span class="line"></span>
+      <span class="label">The Marigold<b>Clockwork Aeronautics</b></span>
+    </div>
+
+    <div class="hint">
+      <span class="mouse" aria-hidden="true"></span>
+      <span class="drag">Drag to orbit</span>
+      <span class="sep" aria-hidden="true"></span>
+      <span class="zoom">Scroll to zoom</span>
+    </div>
+
+    <div class="corner-note" aria-hidden="true">Hand-built in the clouds<br>Est. 1887</div>
+  </div>
+
+  <div class="loader" id="loader">
+    <div class="gear-loader" aria-hidden="true"></div>
+    <p>Winding the mainspring…</p>
+    <small>Preparing the sky</small>
+  </div>
+
+  <noscript>
+    <div style="position:fixed;inset:0;z-index:30;display:grid;place-items:center;background:#efd0a4;color:#52351f;font:16px Georgia,serif;text-align:center;padding:30px;">
+      This little airship needs JavaScript to take flight.
+    </div>
+  </noscript>
+
+  <script id="three-b64" type="text/plain">__THREE_B64__</script>
+  <script id="orbit-b64" type="text/plain">__ORBIT_B64__</script>
+  <script>
+__SCENE_JS__
+  </script>
+  <script>
+    (async function boot() {
+      const decode = (id) => {
+        const raw = document.getElementById(id).textContent.trim();
+        const bytes = Uint8Array.from(atob(raw), (c) => c.charCodeAt(0));
+        return new TextDecoder().decode(bytes);
+      };
+      try {
+        const threeUrl = URL.createObjectURL(new Blob([decode('three-b64')], { type: 'text/javascript' }));
+        const THREE = await import(threeUrl);
+        let orbitSource = decode('orbit-b64');
+        orbitSource = orbitSource.replace(/from\s+['"]three['"]/g, "from '" + threeUrl + "'");
+        const orbitUrl = URL.createObjectURL(new Blob([orbitSource], { type: 'text/javascript' }));
+        const { OrbitControls } = await import(orbitUrl);
+        startApp(THREE, OrbitControls);
+      } catch (error) {
+        console.error(error);
+        const loader = document.getElementById('loader');
+        if (loader) {
+          loader.innerHTML = '<div class="gear-loader" aria-hidden="true"></div><p>Flight delayed.</p><div class="error">The airship could not be assembled in this browser. A WebGL-capable browser is required.<br><br>' + String(error && error.message || error) + '</div>';
+        }
+      }
+    })();
+  </script>
+</body>
+</html>

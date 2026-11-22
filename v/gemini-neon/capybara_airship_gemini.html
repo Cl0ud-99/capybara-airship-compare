@@ -1,0 +1,2187 @@
+<!--
+  Project: S.S. Capybara — Clockwork Wooden Airship (Three.js Single-File)
+  AI Model: Gemini
+  Engine: Three.js r169 (ES Module ImportMap via jsDelivr CDN) + OrbitControls
+  Models Included:
+    1. Capybara Pilot (capybaraGroup): Procedural fur, boxy muzzle, serene eyelids, rear ears, brass aviator goggles, 11-segment fluttering crimson scarf
+    2. Clockwork Wooden Airship (airshipRoot): Lofted planked gondola, cockpit gauges/throttle/helm/rudder, copper boiler & steam puffs, meshed counter-rotating flank gears (16/10/12T), stern wind-up key, outrigger wooden propellers with blur discs, striped dirigible envelope, tail fins & cross-braced rigging
+    3. Golden-Hour Sky & HUD: Custom GLSL sky dome, drifting volumetric clouds, wind streaks, OrbitControls & collapsible brass-and-parchment HUD
+-->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>S.S. Capybara — Clockwork Wooden Airship (Three.js)</title>
+  <style>
+    :root {
+      --parchment: #f4e7cb;
+      --parchment-dark: #e2cfa6;
+      --ink: #2f2014;
+      --ink-muted: #654b32;
+      --brass-light: #e7c26c;
+      --brass-mid: #b88735;
+      --brass-dark: #6b4914;
+      --burgundy: #7a2626;
+      --burgundy-bright: #9f3333;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #1d2233;
+      font-family: "Georgia", "Palatino Linotype", "Book Antiqua", serif;
+      color: var(--ink);
+      user-select: none;
+    }
+
+    #canvas-container {
+      width: 100%;
+      height: 100%;
+      position: fixed;
+      inset: 0;
+    }
+
+    /* Title Plaque (Top Left) */
+    .title-plaque {
+      position: fixed;
+      top: 18px;
+      left: 18px;
+      z-index: 10;
+      background: linear-gradient(160deg, var(--parchment), var(--parchment-dark));
+      border: 2.5px solid var(--brass-mid);
+      box-shadow:
+        0 8px 24px rgba(18, 10, 4, 0.42),
+        inset 0 0 0 2px rgba(255, 245, 220, 0.55),
+        inset 0 0 14px rgba(107, 73, 20, 0.22);
+      border-radius: 10px;
+      padding: 10px 16px;
+      pointer-events: none;
+    }
+
+    .title-plaque h1 {
+      font-size: 1.08rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--ink);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .title-plaque .subtitle {
+      font-size: 0.74rem;
+      letter-spacing: 0.05em;
+      color: var(--ink-muted);
+      margin-top: 2px;
+      font-style: italic;
+    }
+
+    .rivet {
+      display: inline-block;
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: radial-gradient(circle at 30% 30%, var(--brass-light), var(--brass-dark));
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.45);
+    }
+
+    /* Brass & Parchment Control HUD (Top Right) */
+    .hud {
+      position: fixed;
+      top: 18px;
+      right: 18px;
+      z-index: 12;
+      width: 266px;
+      background: linear-gradient(170deg, rgba(244, 231, 203, 0.96), rgba(224, 204, 162, 0.95));
+      border: 2.5px solid var(--brass-mid);
+      border-radius: 12px;
+      box-shadow:
+        0 10px 30px rgba(15, 8, 2, 0.48),
+        inset 0 0 0 2px rgba(255, 247, 224, 0.55),
+        inset 0 0 18px rgba(107, 73, 20, 0.2);
+      overflow: hidden;
+      transition: transform 0.25s ease;
+    }
+
+    .hud-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 14px;
+      background: linear-gradient(180deg, #4b3118, #331f0e);
+      color: var(--parchment);
+      border-bottom: 2px solid var(--brass-mid);
+      cursor: pointer;
+    }
+
+    .hud-header-title {
+      font-size: 0.82rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 7px;
+    }
+
+    .hud-toggle {
+      background: transparent;
+      border: 1px solid rgba(231, 194, 108, 0.55);
+      color: var(--brass-light);
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      font-size: 0.78rem;
+      line-height: 1;
+      cursor: pointer;
+      display: grid;
+      place-items: center;
+      transition: background 0.2s ease, transform 0.25s ease;
+    }
+
+    .hud-toggle:hover {
+      background: rgba(231, 194, 108, 0.18);
+    }
+
+    .hud.collapsed .hud-body {
+      display: none;
+    }
+
+    .hud.collapsed .hud-toggle {
+      transform: rotate(180deg);
+    }
+
+    .hud-body {
+      padding: 13px 14px 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 13px;
+    }
+
+    .section-label {
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--ink-muted);
+      font-weight: 700;
+      margin-bottom: 6px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .preset-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 6px;
+    }
+
+    .btn {
+      appearance: none;
+      font-family: inherit;
+      font-size: 0.8rem;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      padding: 8px 11px;
+      border-radius: 7px;
+      cursor: pointer;
+      border: 1.5px solid var(--brass-dark);
+      color: var(--ink);
+      background: linear-gradient(180deg, #faf1db, #e0cb9e);
+      box-shadow: 0 2px 4px rgba(47, 32, 20, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.7);
+      transition: all 0.16s ease;
+      text-align: left;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .btn:hover {
+      background: linear-gradient(180deg, #fff8e8, #e8d4a6);
+      border-color: var(--brass-mid);
+      transform: translateY(-1px);
+    }
+
+    .btn.active {
+      background: linear-gradient(180deg, var(--burgundy-bright), var(--burgundy));
+      color: var(--parchment);
+      border-color: #4f1414;
+      box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.35);
+    }
+
+    .btn-tag {
+      font-size: 0.66rem;
+      opacity: 0.78;
+      font-style: italic;
+      font-weight: 400;
+    }
+
+    .slider-wrap {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+
+    input[type="range"] {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 100%;
+      height: 8px;
+      border-radius: 99px;
+      background: linear-gradient(90deg, #5c3d1e, #b88735, #d65a2a);
+      border: 1px solid var(--brass-dark);
+      outline: none;
+      cursor: pointer;
+    }
+
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: radial-gradient(circle at 35% 30%, #fff0c2, var(--brass-mid) 60%, var(--brass-dark));
+      border: 2px solid #3f270c;
+      box-shadow: 0 2px 5px rgba(0, 0, 0, 0.4);
+    }
+
+    input[type="range"]::-moz-range-thumb {
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: radial-gradient(circle at 35% 30%, #fff0c2, var(--brass-mid) 60%, var(--brass-dark));
+      border: 2px solid #3f270c;
+      box-shadow: 0 2px 5px rgba(0, 0, 0, 0.4);
+    }
+
+    .telemetry-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+      font-size: 0.72rem;
+      background: rgba(65, 42, 18, 0.08);
+      border: 1px solid rgba(107, 73, 20, 0.25);
+      border-radius: 7px;
+      padding: 7px 9px;
+    }
+
+    .telemetry-cell strong {
+      display: block;
+      font-size: 0.85rem;
+      color: var(--burgundy);
+    }
+
+    .action-row {
+      display: flex;
+      gap: 8px;
+    }
+
+    .btn-primary {
+      flex: 1;
+      text-align: center;
+      justify-content: center;
+      background: linear-gradient(180deg, #d7ac56, #a87726);
+      color: #231407;
+      border-color: #5b3c0e;
+    }
+
+    .btn-primary:hover {
+      background: linear-gradient(180deg, #e5be6c, #b98630);
+    }
+
+    .hint-bar {
+      position: fixed;
+      bottom: 14px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 10;
+      background: rgba(34, 22, 12, 0.68);
+      color: #f3e4c3;
+      border: 1px solid rgba(231, 194, 108, 0.45);
+      border-radius: 99px;
+      padding: 6px 14px;
+      font-size: 0.74rem;
+      letter-spacing: 0.04em;
+      backdrop-filter: blur(5px);
+      pointer-events: none;
+      white-space: nowrap;
+    }
+
+    @media (max-width: 640px) {
+      .title-plaque {
+        top: 10px;
+        left: 10px;
+        padding: 7px 11px;
+      }
+      .title-plaque h1 { font-size: 0.9rem; }
+      .hud {
+        top: auto;
+        bottom: 42px;
+        right: 10px;
+        width: 230px;
+      }
+      .hint-bar {
+        font-size: 0.66rem;
+        bottom: 8px;
+      }
+    }
+  </style>
+
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.169.0/examples/jsm/"
+      }
+    }
+  </script>
+</head>
+<body>
+  <div id="canvas-container"></div>
+
+  <div class="title-plaque">
+    <h1><span class="rivet"></span> S.S. Capybara <span class="rivet"></span></h1>
+    <div class="subtitle">Clockwork Wooden Dirigible &bull; Capt. Barnaby at the Helm</div>
+  </div>
+
+  <aside class="hud" id="hud">
+    <div class="hud-header" id="hud-header">
+      <span class="hud-header-title"><span class="rivet"></span> Flight Deck</span>
+      <button class="hud-toggle" id="hud-toggle" aria-label="Toggle panel">&#9652;</button>
+    </div>
+    <div class="hud-body">
+      <div>
+        <div class="section-label"><span>Camera Presets</span><span>1 &ndash; 3</span></div>
+        <div class="preset-grid">
+          <button class="btn active" data-preset="full">
+            <span>Full Airship</span><span class="btn-tag">Quarter View</span>
+          </button>
+          <button class="btn" data-preset="captain">
+            <span>Captain Close-Up</span><span class="btn-tag">Helm &amp; Goggles</span>
+          </button>
+          <button class="btn" data-preset="clockwork">
+            <span>Clockwork Side</span><span class="btn-tag">Meshed Gears</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="slider-wrap">
+        <div class="section-label">
+          <span>Clockwork Throttle</span>
+          <span id="throttle-readout">65%</span>
+        </div>
+        <input id="throttle-slider" type="range" min="0" max="100" value="65" />
+      </div>
+
+      <div class="telemetry-row">
+        <div class="telemetry-cell">
+          Boiler Pressure
+          <strong id="psi-readout">48 PSI</strong>
+        </div>
+        <div class="telemetry-cell">
+          Airspeed
+          <strong id="knot-readout">18.2 kt</strong>
+        </div>
+      </div>
+
+      <div class="action-row">
+        <button class="btn btn-primary" id="play-pause-btn">Pause Clockwork</button>
+      </div>
+    </div>
+  </aside>
+
+  <div class="hint-bar">
+    Drag to Orbit &bull; Scroll to Zoom &bull; Right-Drag to Pan &bull; Space to Play/Pause
+  </div>
+
+  <script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+    // =========================================================================
+    // 1. RENDERER, SCENE, CAMERA & ORBIT CONTROLS
+    // =========================================================================
+    const container = document.getElementById('canvas-container');
+    const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.08;
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    container.appendChild(renderer.domElement);
+
+    const scene = new THREE.Scene();
+    scene.fog = new THREE.FogExp2(0xeab57b, 0.0046);
+
+    const camera = new THREE.PerspectiveCamera(42, window.innerWidth / window.innerHeight, 0.1, 400);
+    camera.position.set(10.8, 5.2, 13.8);
+
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.06;
+    controls.minDistance = 2.6;
+    controls.maxDistance = 42;
+    controls.maxPolarAngle = Math.PI * 0.86;
+    controls.target.set(0.2, 1.85, 0);
+    controls.update();
+
+    // =========================================================================
+    // 2. PROCEDURAL TEXTURES (Wood Planks, Capybara Fur, Dirigible Canvas, Gauge)
+    // =========================================================================
+    function createWoodPlankTexture(baseHex = '#7c4c28', grainHex = '#4f2d14', plankRows = 8) {
+      const c = document.createElement('canvas');
+      c.width = 512;
+      c.height = 512;
+      const ctx = c.getContext('2d');
+
+      ctx.fillStyle = baseHex;
+      ctx.fillRect(0, 0, 512, 512);
+
+      const rowH = 512 / plankRows;
+      for (let r = 0; r < plankRows; r++) {
+        const y0 = r * rowH;
+        const shade = (r % 2 === 0 ? 1 : -1) * (6 + (r * 7) % 12);
+        ctx.fillStyle = shade > 0 ? `rgba(255,220,175,${shade / 260})` : `rgba(30,14,4,${-shade / 240})`;
+        ctx.fillRect(0, y0, 512, rowH);
+
+        // Fine wood fibers
+        ctx.strokeStyle = grainHex;
+        for (let i = 0; i < 24; i++) {
+          ctx.globalAlpha = 0.08 + Math.random() * 0.14;
+          ctx.lineWidth = 0.8 + Math.random() * 1.4;
+          ctx.beginPath();
+          const gy = y0 + Math.random() * rowH;
+          ctx.moveTo(0, gy);
+          ctx.bezierCurveTo(170, gy + (Math.random() - 0.5) * 6, 340, gy + (Math.random() - 0.5) * 6, 512, gy);
+          ctx.stroke();
+        }
+
+        // Plank seam
+        ctx.globalAlpha = 0.65;
+        ctx.fillStyle = '#2b1608';
+        ctx.fillRect(0, y0, 512, 2.2);
+
+        // Vertical butt joint + recessed nail heads
+        const jointX = ((r * 173 + 90) % 420) + 46;
+        ctx.fillRect(jointX, y0, 2, rowH);
+        ctx.globalAlpha = 0.85;
+        ctx.fillStyle = '#3a220e';
+        ctx.beginPath();
+        ctx.arc(jointX - 8, y0 + rowH * 0.28, 2.2, 0, Math.PI * 2);
+        ctx.arc(jointX - 8, y0 + rowH * 0.72, 2.2, 0, Math.PI * 2);
+        ctx.arc(jointX + 10, y0 + rowH * 0.28, 2.2, 0, Math.PI * 2);
+        ctx.arc(jointX + 10, y0 + rowH * 0.72, 2.2, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+
+      const tex = new THREE.CanvasTexture(c);
+      tex.wrapS = THREE.RepeatWrapping;
+      tex.wrapT = THREE.RepeatWrapping;
+      tex.colorSpace = THREE.SRGBColorSpace;
+      return tex;
+    }
+
+    function createCapybaraFurTexture() {
+      const c = document.createElement('canvas');
+      c.width = 512;
+      c.height = 512;
+      const ctx = c.getContext('2d');
+
+      const grad = ctx.createLinearGradient(0, 0, 0, 512);
+      grad.addColorStop(0, '#8d6643');
+      grad.addColorStop(0.55, '#7c5636');
+      grad.addColorStop(1, '#5d3e24');
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, 512, 512);
+
+      // Coarse bristly directional hair strokes
+      for (let i = 0; i < 6500; i++) {
+        const x = Math.random() * 512;
+        const y = Math.random() * 512;
+        const len = 6 + Math.random() * 14;
+        const palette = ['#a47a52', '#6a472a', '#4d321c', '#b78d62', '#825c3a'];
+        ctx.strokeStyle = palette[Math.floor(Math.random() * palette.length)];
+        ctx.globalAlpha = 0.28 + Math.random() * 0.32;
+        ctx.lineWidth = 0.9 + Math.random() * 1.1;
+        ctx.beginPath();
+        ctx.moveTo(x, y);
+        ctx.lineTo(x + (Math.random() - 0.5) * 3, y + len);
+        ctx.stroke();
+      }
+      ctx.globalAlpha = 1;
+
+      const tex = new THREE.CanvasTexture(c);
+      tex.wrapS = THREE.RepeatWrapping;
+      tex.wrapT = THREE.RepeatWrapping;
+      tex.colorSpace = THREE.SRGBColorSpace;
+      return tex;
+    }
+
+    function createEnvelopeTexture() {
+      const c = document.createElement('canvas');
+      c.width = 1024;
+      c.height = 512;
+      const ctx = c.getContext('2d');
+
+      const stripes = 16;
+      const stripeH = 512 / stripes;
+      for (let i = 0; i < stripes; i++) {
+        const isBurgundy = i % 2 === 1;
+        ctx.fillStyle = isBurgundy ? '#7b2525' : '#efe1c1';
+        ctx.fillRect(0, i * stripeH, 1024, stripeH);
+
+        // Subtle linen weave
+        ctx.fillStyle = isBurgundy ? 'rgba(255,220,190,0.06)' : 'rgba(95,62,30,0.06)';
+        for (let k = 0; k < 28; k++) {
+          ctx.fillRect(0, i * stripeH + Math.random() * stripeH, 1024, 1);
+        }
+
+        // Gore seam piping
+        ctx.fillStyle = '#4e2f16';
+        ctx.fillRect(0, i * stripeH, 1024, 2);
+      }
+
+      // Decorative brass-gold belly band near equator
+      ctx.fillStyle = '#c89b44';
+      ctx.fillRect(462, 0, 100, 512);
+      ctx.fillStyle = '#5c1b1b';
+      ctx.fillRect(472, 0, 80, 512);
+      ctx.fillStyle = '#e5bf6e';
+      ctx.fillRect(472, 0, 6, 512);
+      ctx.fillRect(546, 0, 6, 512);
+
+      // Diamond motif on belly band
+      ctx.fillStyle = '#e5bf6e';
+      for (let y = 16; y < 512; y += 32) {
+        ctx.beginPath();
+        ctx.moveTo(512, y - 9);
+        ctx.lineTo(526, y);
+        ctx.lineTo(512, y + 9);
+        ctx.lineTo(498, y);
+        ctx.closePath();
+        ctx.fill();
+      }
+
+      const tex = new THREE.CanvasTexture(c);
+      tex.wrapS = THREE.RepeatWrapping;
+      tex.wrapT = THREE.RepeatWrapping;
+      tex.colorSpace = THREE.SRGBColorSpace;
+      return tex;
+    }
+
+    function createGaugeFaceTexture(label) {
+      const c = document.createElement('canvas');
+      c.width = 256;
+      c.height = 256;
+      const ctx = c.getContext('2d');
+
+      ctx.fillStyle = '#f5e8cc';
+      ctx.beginPath();
+      ctx.arc(128, 128, 124, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.strokeStyle = '#3c2612';
+      ctx.lineWidth = 6;
+      ctx.beginPath();
+      ctx.arc(128, 128, 114, 0, Math.PI * 2);
+      ctx.stroke();
+
+      for (let i = 0; i <= 12; i++) {
+        const a = Math.PI * 0.75 + (i / 12) * Math.PI * 1.5;
+        const r1 = i % 3 === 0 ? 84 : 94;
+        const r2 = 108;
+        ctx.strokeStyle = i >= 10 ? '#9e2620' : '#2e1d0e';
+        ctx.lineWidth = i % 3 === 0 ? 5 : 2.5;
+        ctx.beginPath();
+        ctx.moveTo(128 + Math.cos(a) * r1, 128 + Math.sin(a) * r1);
+        ctx.lineTo(128 + Math.cos(a) * r2, 128 + Math.sin(a) * r2);
+        ctx.stroke();
+      }
+
+      ctx.fillStyle = '#3a2410';
+      ctx.font = 'bold 26px Georgia';
+      ctx.textAlign = 'center';
+      ctx.fillText(label, 128, 184);
+
+      const tex = new THREE.CanvasTexture(c);
+      tex.colorSpace = THREE.SRGBColorSpace;
+      return tex;
+    }
+
+    function createPropBlurTexture() {
+      const c = document.createElement('canvas');
+      c.width = 256;
+      c.height = 256;
+      const ctx = c.getContext('2d');
+      ctx.clearRect(0, 0, 256, 256);
+
+      const g = ctx.createRadialGradient(128, 128, 10, 128, 128, 124);
+      g.addColorStop(0.0, 'rgba(130, 82, 40, 0.05)');
+      g.addColorStop(0.35, 'rgba(170, 112, 58, 0.28)');
+      g.addColorStop(0.75, 'rgba(218, 165, 92, 0.34)');
+      g.addColorStop(0.92, 'rgba(244, 212, 148, 0.45)');
+      g.addColorStop(1.0, 'rgba(244, 212, 148, 0.0)');
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.arc(128, 128, 124, 0, Math.PI * 2);
+      ctx.fill();
+
+      for (let i = 0; i < 6; i++) {
+        ctx.strokeStyle = 'rgba(255, 232, 186, 0.28)';
+        ctx.lineWidth = 4;
+        ctx.beginPath();
+        ctx.arc(128, 128, 44 + i * 13, i * 0.7, i * 0.7 + 1.8);
+        ctx.stroke();
+      }
+
+      const tex = new THREE.CanvasTexture(c);
+      tex.colorSpace = THREE.SRGBColorSpace;
+      return tex;
+    }
+
+    // Shared PBR Materials
+    const woodHullTex = createWoodPlankTexture('#83502b', '#4d2b12', 10);
+    woodHullTex.repeat.set(2.4, 1.4);
+    const woodDeckTex = createWoodPlankTexture('#9a6439', '#61391b', 12);
+    woodDeckTex.repeat.set(2, 2);
+
+    const matHullWood = new THREE.MeshStandardMaterial({
+      map: woodHullTex,
+      roughness: 0.68,
+      metalness: 0.05
+    });
+    const matDarkTimber = new THREE.MeshStandardMaterial({
+      color: 0x4b2b16,
+      roughness: 0.72,
+      metalness: 0.06
+    });
+    const matMahogany = new THREE.MeshStandardMaterial({
+      color: 0x6c2f1b,
+      roughness: 0.44,
+      metalness: 0.08
+    });
+    const matDeckWood = new THREE.MeshStandardMaterial({
+      map: woodDeckTex,
+      roughness: 0.74,
+      metalness: 0.04
+    });
+    const matBrass = new THREE.MeshStandardMaterial({
+      color: 0xd8a84e,
+      roughness: 0.28,
+      metalness: 0.86
+    });
+    const matAgedBrass = new THREE.MeshStandardMaterial({
+      color: 0x9e7532,
+      roughness: 0.42,
+      metalness: 0.78
+    });
+    const matCopper = new THREE.MeshStandardMaterial({
+      color: 0xc96c43,
+      roughness: 0.3,
+      metalness: 0.84
+    });
+    const matDarkIron = new THREE.MeshStandardMaterial({
+      color: 0x35312e,
+      roughness: 0.55,
+      metalness: 0.72
+    });
+    const matLeather = new THREE.MeshStandardMaterial({
+      color: 0x4b2615,
+      roughness: 0.62,
+      metalness: 0.08
+    });
+    const matRope = new THREE.MeshStandardMaterial({
+      color: 0xc5a87a,
+      roughness: 0.92,
+      metalness: 0.0
+    });
+    const matCanvasFin = new THREE.MeshStandardMaterial({
+      color: 0xefe0be,
+      roughness: 0.85,
+      metalness: 0.02,
+      side: THREE.DoubleSide
+    });
+    const matBurgundyFin = new THREE.MeshStandardMaterial({
+      color: 0x7d2626,
+      roughness: 0.82,
+      metalness: 0.02,
+      side: THREE.DoubleSide
+    });
+    const matEnvelope = new THREE.MeshStandardMaterial({
+      map: createEnvelopeTexture(),
+      roughness: 0.78,
+      metalness: 0.03
+    });
+    const matScarf = new THREE.MeshStandardMaterial({
+      color: 0xb62326,
+      roughness: 0.82,
+      metalness: 0.02,
+      side: THREE.DoubleSide
+    });
+    const matFirebox = new THREE.MeshStandardMaterial({
+      color: 0xff6e1c,
+      emissive: 0xff5a0a,
+      emissiveIntensity: 2.2,
+      roughness: 0.4
+    });
+
+    // =========================================================================
+    // 3. GOLDEN-HOUR SKY DOME & LIGHTING
+    // =========================================================================
+    const skyGeo = new THREE.SphereGeometry(220, 48, 32);
+    const skyMat = new THREE.ShaderMaterial({
+      side: THREE.BackSide,
+      depthWrite: false,
+      uniforms: {
+        uSunDir: { value: new THREE.Vector3(-0.62, 0.26, -0.74).normalize() },
+        uZenith: { value: new THREE.Color('#243866') },
+        uMidSky: { value: new THREE.Color('#c76e57') },
+        uHorizon: { value: new THREE.Color('#ffd08a') },
+        uGround: { value: new THREE.Color('#8e5344') }
+      },
+      vertexShader: `
+        varying vec3 vWorldDir;
+        void main() {
+          vec4 wp = modelMatrix * vec4(position, 1.0);
+          vWorldDir = normalize(position);
+          gl_Position = projectionMatrix * viewMatrix * wp;
+        }
+      `,
+      fragmentShader: `
+        uniform vec3 uSunDir;
+        uniform vec3 uZenith;
+        uniform vec3 uMidSky;
+        uniform vec3 uHorizon;
+        uniform vec3 uGround;
+        varying vec3 vWorldDir;
+        void main() {
+          vec3 dir = normalize(vWorldDir);
+          float h = dir.y;
+          vec3 col;
+          if (h >= 0.0) {
+            float t1 = smoothstep(0.0, 0.24, h);
+            float t2 = smoothstep(0.18, 0.78, h);
+            col = mix(uHorizon, uMidSky, t1);
+            col = mix(col, uZenith, t2);
+          } else {
+            col = mix(uHorizon, uGround, smoothstep(0.0, -0.35, h));
+          }
+
+          float sunDot = max(dot(dir, normalize(uSunDir)), 0.0);
+          float halo = pow(sunDot, 7.0) * 0.48;
+          float core = smoothstep(0.9965, 0.9992, sunDot) * 1.45;
+          col += vec3(1.0, 0.84, 0.56) * halo + vec3(1.0, 0.96, 0.84) * core;
+
+          gl_FragColor = vec4(col, 1.0);
+        }
+      `
+    });
+    scene.add(new THREE.Mesh(skyGeo, skyMat));
+
+    const hemiLight = new THREE.HemisphereLight(0xffdfad, 0x6b453a, 0.95);
+    scene.add(hemiLight);
+
+    const sunLight = new THREE.DirectionalLight(0xffd292, 2.55);
+    sunLight.position.set(-16, 12, -18);
+    sunLight.castShadow = true;
+    sunLight.shadow.mapSize.set(2048, 2048);
+    sunLight.shadow.camera.near = 2;
+    sunLight.shadow.camera.far = 55;
+    sunLight.shadow.camera.left = -12;
+    sunLight.shadow.camera.right = 12;
+    sunLight.shadow.camera.top = 12;
+    sunLight.shadow.camera.bottom = -12;
+    sunLight.shadow.bias = -0.0005;
+    scene.add(sunLight);
+
+    const keyFill = new THREE.DirectionalLight(0xffefd4, 0.85);
+    keyFill.position.set(14, 7, 13);
+    scene.add(keyFill);
+
+    const rimLight = new THREE.DirectionalLight(0x88a8e6, 0.55);
+    rimLight.position.set(6, -6, 12);
+    scene.add(rimLight);
+
+    // =========================================================================
+    // 4. GEOMETRY HELPERS (Symmetrical Involute-Style Meshed Gears & Rigging)
+    // =========================================================================
+    function createGearMesh(teeth, moduleSize, thickness, hubRadius, spokes, material) {
+      const pitchR = (moduleSize * teeth) / 2;
+      const addendum = moduleSize * 0.88;
+      const dedendum = moduleSize * 1.12;
+      const outerR = pitchR + addendum;
+      const rootR = Math.max(pitchR - dedendum, hubRadius + 0.05);
+
+      // Tooth 0 is centered symmetrically at angle 0; valley 0 is centered at +0.5 * step
+      const shape = new THREE.Shape();
+      const step = (Math.PI * 2) / teeth;
+
+      for (let i = 0; i < teeth; i++) {
+        const c = i * step;
+        const a0 = c - step * 0.25;
+        const a1 = c - step * 0.11;
+        const a2 = c + step * 0.11;
+        const a3 = c + step * 0.25;
+
+        const p0x = Math.cos(a0) * rootR, p0y = Math.sin(a0) * rootR;
+        if (i === 0) shape.moveTo(p0x, p0y);
+        else shape.lineTo(p0x, p0y);
+
+        shape.lineTo(Math.cos(a1) * outerR, Math.sin(a1) * outerR);
+        shape.lineTo(Math.cos(a2) * outerR, Math.sin(a2) * outerR);
+        shape.lineTo(Math.cos(a3) * rootR, Math.sin(a3) * rootR);
+      }
+      shape.closePath();
+
+      // Spoked lightening cutouts
+      const holeInner = hubRadius + 0.05;
+      const holeOuter = rootR - 0.07;
+      if (spokes > 0 && holeOuter > holeInner + 0.05) {
+        const sector = (Math.PI * 2) / spokes;
+        const pad = 0.22;
+        for (let s = 0; s < spokes; s++) {
+          const sa0 = s * sector + pad;
+          const sa1 = (s + 1) * sector - pad;
+          if (sa1 <= sa0 + 0.06) continue;
+          const hole = new THREE.Path();
+          const segs = 10;
+          for (let k = 0; k <= segs; k++) {
+            const a = sa0 + (k / segs) * (sa1 - sa0);
+            const x = Math.cos(a) * holeOuter;
+            const y = Math.sin(a) * holeOuter;
+            if (k === 0) hole.moveTo(x, y);
+            else hole.lineTo(x, y);
+          }
+          for (let k = segs; k >= 0; k--) {
+            const a = sa0 + (k / segs) * (sa1 - sa0);
+            hole.lineTo(Math.cos(a) * holeInner, Math.sin(a) * holeInner);
+          }
+          hole.closePath();
+          shape.holes.push(hole);
+        }
+      }
+
+      const bore = new THREE.Path();
+      bore.absarc(0, 0, hubRadius * 0.42, 0, Math.PI * 2, true);
+      shape.holes.push(bore);
+
+      const geo = new THREE.ExtrudeGeometry(shape, {
+        depth: thickness,
+        bevelEnabled: true,
+        bevelThickness: 0.014,
+        bevelSize: 0.012,
+        bevelSegments: 2,
+        curveSegments: 8
+      });
+      geo.translate(0, 0, -thickness / 2);
+
+      const group = new THREE.Group();
+      const gearMesh = new THREE.Mesh(geo, material);
+      gearMesh.castShadow = true;
+      gearMesh.receiveShadow = true;
+      group.add(gearMesh);
+
+      const hub = new THREE.Mesh(
+        new THREE.CylinderGeometry(hubRadius, hubRadius * 1.08, thickness * 1.85, 18),
+        matAgedBrass
+      );
+      hub.rotation.x = Math.PI / 2;
+      hub.castShadow = true;
+      group.add(hub);
+
+      const pin = new THREE.Mesh(
+        new THREE.CylinderGeometry(hubRadius * 0.46, hubRadius * 0.46, thickness * 2.4, 14),
+        matDarkIron
+      );
+      pin.rotation.x = Math.PI / 2;
+      group.add(pin);
+
+      group.userData = { teeth, pitchR };
+      return group;
+    }
+
+    function createCable(p1, p2, radius = 0.014, mat = matRope) {
+      const dir = new THREE.Vector3().subVectors(p2, p1);
+      const len = dir.length();
+      const mesh = new THREE.Mesh(new THREE.CylinderGeometry(radius, radius, len, 6), mat);
+      mesh.position.copy(p1).add(p2).multiplyScalar(0.5);
+      mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.normalize());
+      return mesh;
+    }
+
+    // =========================================================================
+    // 5. AIRSHIP ROOT ASSEMBLY (S.S. CAPYBARA)
+    // =========================================================================
+    const airshipRoot = new THREE.Group();
+    scene.add(airshipRoot);
+
+    // -------------------------------------------------------------------------
+    // 5A. LOFTED PLANKED WOODEN GONDOLA HULL
+    // -------------------------------------------------------------------------
+    const gondolaGroup = new THREE.Group();
+    airshipRoot.add(gondolaGroup);
+
+    function buildLoftedHull() {
+      const lenStations = 26;
+      const profilePts = 14;
+      const halfLen = 3.1;
+
+      const positions = [];
+      const uvs = [];
+      const indices = [];
+
+      for (let i = 0; i <= lenStations; i++) {
+        const u = i / lenStations; // 0 = stern (-X), 1 = bow (+X)
+        const x = (u * 2 - 1) * halfLen;
+
+        const bowTaper = Math.pow(Math.sin(u * Math.PI), 0.62);
+        const beam = 1.18 * bowTaper * (u > 0.5 ? 1.0 - 0.14 * (u - 0.5) : 1.0);
+        const depth = 1.05 * Math.pow(Math.sin(u * Math.PI), 0.48) + 0.12;
+        const sheerLift = 0.34 * Math.pow(Math.abs(u * 2 - 1), 2.1) + (u > 0.5 ? 0.12 * (u - 0.5) : 0);
+
+        for (let j = 0; j <= profilePts; j++) {
+          const v = j / profilePts;
+          const angle = (v - 0.5) * Math.PI;
+          const z = Math.sin(angle) * beam;
+          const y = (1 - Math.cos(angle)) * depth - 0.88 + sheerLift * (1 - Math.cos(angle) * 0.45);
+
+          positions.push(x, y, z);
+          uvs.push(u * 2.5, v);
+        }
+      }
+
+      const stride = profilePts + 1;
+      for (let i = 0; i < lenStations; i++) {
+        for (let j = 0; j < profilePts; j++) {
+          const a = i * stride + j;
+          const b = (i + 1) * stride + j;
+          const c = (i + 1) * stride + (j + 1);
+          const d = i * stride + (j + 1);
+          indices.push(a, d, b, b, d, c);
+        }
+      }
+
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+      geo.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+      geo.setIndex(indices);
+      geo.computeVertexNormals();
+
+      const outerHull = new THREE.Mesh(geo, matHullWood);
+      outerHull.castShadow = true;
+      outerHull.receiveShadow = true;
+
+      const innerMat = matDarkTimber.clone();
+      innerMat.side = THREE.BackSide;
+      const innerHull = new THREE.Mesh(geo, innerMat);
+      innerHull.scale.set(0.96, 0.96, 0.93);
+      innerHull.receiveShadow = true;
+
+      const hullWrap = new THREE.Group();
+      hullWrap.add(outerHull, innerHull);
+      return hullWrap;
+    }
+
+    gondolaGroup.add(buildLoftedHull());
+
+    // Wooden Deck Floor inside Gondola
+    const deckShape = new THREE.Shape();
+    deckShape.moveTo(-2.65, 0);
+    deckShape.quadraticCurveTo(-1.5, 0.95, 0.2, 0.98);
+    deckShape.quadraticCurveTo(1.8, 0.92, 2.75, 0);
+    deckShape.quadraticCurveTo(1.8, -0.92, 0.2, -0.98);
+    deckShape.quadraticCurveTo(-1.5, -0.95, -2.65, 0);
+    const deckGeo = new THREE.ExtrudeGeometry(deckShape, { depth: 0.08, bevelEnabled: false });
+    deckGeo.rotateX(Math.PI / 2);
+    const deckMesh = new THREE.Mesh(deckGeo, matDeckWood);
+    deckMesh.position.y = -0.18;
+    deckMesh.receiveShadow = true;
+    gondolaGroup.add(deckMesh);
+
+    const keelMesh = new THREE.Mesh(new THREE.BoxGeometry(5.1, 0.16, 0.14), matDarkTimber);
+    keelMesh.position.set(0, -0.92, 0);
+    keelMesh.castShadow = true;
+    gondolaGroup.add(keelMesh);
+
+    // Sculpted Mahogany & Brass Bowsprit (+X)
+    const bowsprit = new THREE.Mesh(new THREE.CylinderGeometry(0.032, 0.085, 1.85, 12), matMahogany);
+    bowsprit.rotation.z = -Math.PI * 0.41;
+    bowsprit.position.set(3.55, 0.56, 0);
+    bowsprit.castShadow = true;
+    gondolaGroup.add(bowsprit);
+
+    const bowRing = new THREE.Mesh(new THREE.TorusGeometry(0.07, 0.018, 10, 18), matBrass);
+    bowRing.position.set(3.15, 0.44, 0);
+    bowRing.rotation.y = Math.PI / 2;
+    gondolaGroup.add(bowRing);
+
+    const bowFinial = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.22, 12), matBrass);
+    bowFinial.rotation.z = -Math.PI * 0.41;
+    bowFinial.position.set(4.48, 0.84, 0);
+    gondolaGroup.add(bowFinial);
+
+    // Exterior Timber Ribs, Brass Sheer Rivets & Cockpit Railing
+    const gunwalePtsPort = [];
+    const gunwalePtsStbd = [];
+    const railPtsPort = [];
+    const railPtsStbd = [];
+
+    for (let i = 0; i <= 20; i++) {
+      const u = i / 20;
+      const x = (u * 2 - 1) * 3.05;
+      const bowTaper = Math.pow(Math.sin(u * Math.PI), 0.62);
+      const beam = 1.18 * bowTaper * (u > 0.5 ? 1.0 - 0.14 * (u - 0.5) : 1.0);
+      const depth = 1.05 * Math.pow(Math.sin(u * Math.PI), 0.48) + 0.12;
+      const sheerLift = 0.34 * Math.pow(Math.abs(u * 2 - 1), 2.1) + (u > 0.5 ? 0.12 * (u - 0.5) : 0);
+      const yTop = depth - 0.88 + sheerLift;
+
+      gunwalePtsPort.push(new THREE.Vector3(x, yTop, -beam));
+      gunwalePtsStbd.push(new THREE.Vector3(x, yTop, beam));
+
+      if (i >= 3 && i <= 17) {
+        railPtsPort.push(new THREE.Vector3(x, yTop + 0.34, -beam * 0.98));
+        railPtsStbd.push(new THREE.Vector3(x, yTop + 0.34, beam * 0.98));
+      }
+
+      if (i > 2 && i < 18 && i % 2 === 0) {
+        for (const side of [-1, 1]) {
+          const ribCurve = new THREE.QuadraticBezierCurve3(
+            new THREE.Vector3(x, -0.88, side * 0.08),
+            new THREE.Vector3(x, -0.42, side * (beam * 0.92)),
+            new THREE.Vector3(x, yTop, side * (beam + 0.02))
+          );
+          const ribMesh = new THREE.Mesh(
+            new THREE.TubeGeometry(ribCurve, 10, 0.032, 6, false),
+            matDarkTimber
+          );
+          ribMesh.castShadow = true;
+          gondolaGroup.add(ribMesh);
+
+          const rivet = new THREE.Mesh(new THREE.SphereGeometry(0.032, 8, 8), matBrass);
+          rivet.position.set(x, yTop - 0.05, side * (beam + 0.03));
+          gondolaGroup.add(rivet);
+
+          const post = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.022, 0.36, 8), matBrass);
+          post.position.set(x, yTop + 0.17, side * beam * 0.98);
+          post.castShadow = true;
+          gondolaGroup.add(post);
+        }
+      }
+    }
+
+    for (const pts of [gunwalePtsPort, gunwalePtsStbd]) {
+      const curve = new THREE.CatmullRomCurve3(pts);
+      const mesh = new THREE.Mesh(new THREE.TubeGeometry(curve, 36, 0.045, 8, false), matMahogany);
+      mesh.castShadow = true;
+      gondolaGroup.add(mesh);
+    }
+    for (const pts of [railPtsPort, railPtsStbd]) {
+      const curve = new THREE.CatmullRomCurve3(pts);
+      const mesh = new THREE.Mesh(new THREE.TubeGeometry(curve, 24, 0.024, 8, false), matBrass);
+      mesh.castShadow = true;
+      gondolaGroup.add(mesh);
+    }
+
+    // -------------------------------------------------------------------------
+    // 5B. COCKPIT INTERIOR: SEAT, CONSOLE, ANIMATED GAUGES, THROTTLE & HELM
+    // -------------------------------------------------------------------------
+    const cockpitGroup = new THREE.Group();
+    gondolaGroup.add(cockpitGroup);
+
+    // Quilted Leather Pilot Seat
+    const seatGroup = new THREE.Group();
+    seatGroup.position.set(0.32, -0.04, 0);
+    const seatBase = new THREE.Mesh(new THREE.BoxGeometry(0.84, 0.16, 0.92), matLeather);
+    seatBase.castShadow = true;
+    seatGroup.add(seatBase);
+
+    const seatBack = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.72, 0.88), matLeather);
+    seatBack.position.set(-0.36, 0.38, 0);
+    seatBack.rotation.z = 0.14;
+    seatBack.castShadow = true;
+    seatGroup.add(seatBack);
+
+    for (const sz of [-0.36, -0.12, 0.12, 0.36]) {
+      const stud = new THREE.Mesh(new THREE.SphereGeometry(0.022, 8, 8), matBrass);
+      stud.position.set(-0.44, 0.64, sz);
+      seatGroup.add(stud);
+    }
+    cockpitGroup.add(seatGroup);
+
+    // Wooden Instrument Console
+    const consoleBox = new THREE.Mesh(new THREE.BoxGeometry(0.54, 0.62, 1.38), matMahogany);
+    consoleBox.position.set(1.56, 0.24, 0);
+    consoleBox.rotation.z = 0.22;
+    consoleBox.castShadow = true;
+    cockpitGroup.add(consoleBox);
+
+    // Curved Brass Windshield Frame + Tinted Glass (cleanly raked backward toward pilot)
+    const windshieldGroup = new THREE.Group();
+    windshieldGroup.position.set(1.66, 0.56, 0);
+    windshieldGroup.rotation.z = 0.32;
+    cockpitGroup.add(windshieldGroup);
+
+    const shieldFrame = new THREE.Mesh(
+      new THREE.TorusGeometry(0.68, 0.025, 10, 24, Math.PI),
+      matBrass
+    );
+    shieldFrame.rotation.y = Math.PI / 2;
+    windshieldGroup.add(shieldFrame);
+
+    const shieldGlass = new THREE.Mesh(
+      new THREE.CircleGeometry(0.66, 24, 0, Math.PI),
+      new THREE.MeshPhysicalMaterial({
+        color: 0xdff4ff,
+        roughness: 0.08,
+        metalness: 0.1,
+        transmission: 0.72,
+        transparent: true,
+        opacity: 0.42,
+        side: THREE.DoubleSide
+      })
+    );
+    shieldGlass.rotation.y = Math.PI / 2;
+    windshieldGroup.add(shieldGlass);
+
+    // 3 Animated Brass Gauges (PSI, ALT, KTS)
+    const gaugeNeedles = [];
+    const gaugeConfigs = [
+      { z: -0.38, label: 'PSI' },
+      { z: 0.0, label: 'ALT' },
+      { z: 0.38, label: 'KTS' }
+    ];
+    for (const cfg of gaugeConfigs) {
+      const gWrap = new THREE.Group();
+      gWrap.position.set(1.26, 0.48, cfg.z);
+      gWrap.rotation.y = -Math.PI / 2;
+      gWrap.rotation.x = -0.22;
+
+      const bezel = new THREE.Mesh(new THREE.CylinderGeometry(0.145, 0.155, 0.06, 20), matBrass);
+      bezel.rotation.x = Math.PI / 2;
+      gWrap.add(bezel);
+
+      const face = new THREE.Mesh(
+        new THREE.CircleGeometry(0.128, 20),
+        new THREE.MeshStandardMaterial({ map: createGaugeFaceTexture(cfg.label), roughness: 0.5 })
+      );
+      face.position.z = 0.032;
+      gWrap.add(face);
+
+      const needlePivot = new THREE.Group();
+      needlePivot.position.z = 0.037;
+      const needle = new THREE.Mesh(
+        new THREE.BoxGeometry(0.014, 0.095, 0.008),
+        new THREE.MeshStandardMaterial({ color: 0x9b1c1c, roughness: 0.4 })
+      );
+      needle.position.y = 0.036;
+      needlePivot.add(needle);
+
+      const cap = new THREE.Mesh(new THREE.SphereGeometry(0.018, 10, 10), matBrass);
+      needlePivot.add(cap);
+      gWrap.add(needlePivot);
+      gaugeNeedles.push(needlePivot);
+
+      cockpitGroup.add(gWrap);
+    }
+
+    // Physical Brass Throttle Lever
+    const throttleQuad = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.16, 0.16, 0.05, 16, 1, false, 0, Math.PI),
+      matAgedBrass
+    );
+    throttleQuad.position.set(1.16, 0.42, -0.62);
+    throttleQuad.rotation.x = Math.PI / 2;
+    cockpitGroup.add(throttleQuad);
+
+    const throttleLeverPivot = new THREE.Group();
+    throttleLeverPivot.position.set(1.16, 0.42, -0.62);
+    const leverRod = new THREE.Mesh(new THREE.CylinderGeometry(0.014, 0.016, 0.34, 8), matBrass);
+    leverRod.position.y = 0.17;
+    throttleLeverPivot.add(leverRod);
+    const leverHandle = new THREE.Mesh(new THREE.CylinderGeometry(0.032, 0.032, 0.13, 12), matMahogany);
+    leverHandle.rotation.x = Math.PI / 2;
+    leverHandle.position.y = 0.34;
+    throttleLeverPivot.add(leverHandle);
+    cockpitGroup.add(throttleLeverPivot);
+
+    // Spoked Ship's Helm Wheel
+    const helmColumn = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.055, 0.46, 12), matBrass);
+    helmColumn.rotation.z = Math.PI * 0.38;
+    helmColumn.position.set(1.16, 0.40, 0);
+    cockpitGroup.add(helmColumn);
+
+    const helmWheelPivot = new THREE.Group();
+    helmWheelPivot.position.set(0.95, 0.49, 0);
+    helmWheelPivot.rotation.z = -0.36;
+    cockpitGroup.add(helmWheelPivot);
+
+    const helmWheel = new THREE.Group();
+    helmWheel.rotation.y = Math.PI / 2;
+    helmWheelPivot.add(helmWheel);
+
+    const wheelRim = new THREE.Mesh(new THREE.TorusGeometry(0.32, 0.032, 12, 28), matMahogany);
+    wheelRim.castShadow = true;
+    helmWheel.add(wheelRim);
+    const wheelBrassRing = new THREE.Mesh(new THREE.TorusGeometry(0.28, 0.014, 10, 28), matBrass);
+    helmWheel.add(wheelBrassRing);
+    const wheelHub = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.075, 0.09, 16), matBrass);
+    wheelHub.rotation.x = Math.PI / 2;
+    helmWheel.add(wheelHub);
+
+    for (let s = 0; s < 8; s++) {
+      const a = (s / 8) * Math.PI * 2;
+      const spoke = new THREE.Mesh(new THREE.CylinderGeometry(0.014, 0.019, 0.44, 8), matMahogany);
+      spoke.position.set(Math.cos(a) * 0.21, Math.sin(a) * 0.21, 0);
+      spoke.rotation.z = a - Math.PI / 2;
+      helmWheel.add(spoke);
+
+      const handle = new THREE.Mesh(new THREE.SphereGeometry(0.026, 8, 8), matBrass);
+      handle.position.set(Math.cos(a) * 0.43, Math.sin(a) * 0.43, 0);
+      helmWheel.add(handle);
+    }
+
+    // -------------------------------------------------------------------------
+    // 5C. COPPER BOILER, GLOWING FIREBOX & BRASS SMOKESTACK WITH STEAM PUFFS
+    // -------------------------------------------------------------------------
+    const boilerGroup = new THREE.Group();
+    boilerGroup.position.set(-1.32, 0.28, 0);
+    gondolaGroup.add(boilerGroup);
+
+    const boilerBody = new THREE.Mesh(new THREE.CylinderGeometry(0.48, 0.48, 1.24, 24), matCopper);
+    boilerBody.rotation.z = Math.PI / 2;
+    boilerBody.castShadow = true;
+    boilerBody.receiveShadow = true;
+    boilerGroup.add(boilerBody);
+
+    for (const bx of [-0.62, 0.62]) {
+      const cap = new THREE.Mesh(new THREE.SphereGeometry(0.48, 22, 16), matCopper);
+      cap.scale.set(0.45, 1, 1);
+      cap.position.x = bx;
+      boilerGroup.add(cap);
+    }
+
+    for (const sx of [-0.42, 0, 0.42]) {
+      const strap = new THREE.Mesh(new THREE.TorusGeometry(0.49, 0.022, 8, 28), matBrass);
+      strap.rotation.y = Math.PI / 2;
+      strap.position.x = sx;
+      boilerGroup.add(strap);
+    }
+
+    const firebox = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.24, 0.56), matFirebox);
+    firebox.position.set(0.45, -0.18, 0);
+    boilerGroup.add(firebox);
+
+    for (let g = -2; g <= 2; g++) {
+      const bar = new THREE.Mesh(new THREE.CylinderGeometry(0.011, 0.011, 0.26, 6), matDarkIron);
+      bar.position.set(0.62, -0.18, g * 0.1);
+      boilerGroup.add(bar);
+    }
+
+    const boilerGlowLight = new THREE.PointLight(0xff7722, 2.2, 4.5);
+    boilerGlowLight.position.set(0.7, -0.15, 0);
+    boilerGroup.add(boilerGlowLight);
+
+    const stackPipe = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.135, 1.38, 16), matDarkIron);
+    stackPipe.position.set(-0.22, 0.92, 0);
+    stackPipe.castShadow = true;
+    boilerGroup.add(stackPipe);
+
+    const stackCrown = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.115, 0.26, 18), matBrass);
+    stackCrown.position.set(-0.22, 1.66, 0);
+    stackCrown.castShadow = true;
+    boilerGroup.add(stackCrown);
+
+    const stackRing = new THREE.Mesh(new THREE.TorusGeometry(0.14, 0.024, 10, 20), matBrass);
+    stackRing.rotation.x = Math.PI / 2;
+    stackRing.position.set(-0.22, 1.24, 0);
+    boilerGroup.add(stackRing);
+
+    const steamPuffs = [];
+    const steamGeo = new THREE.IcosahedronGeometry(0.16, 1);
+    for (let i = 0; i < 16; i++) {
+      const mat = new THREE.MeshStandardMaterial({
+        color: 0xfff5e8,
+        roughness: 0.95,
+        metalness: 0.0,
+        transparent: true,
+        opacity: 0.0
+      });
+      const puff = new THREE.Mesh(steamGeo, mat);
+      puff.userData = {
+        age: i / 16,
+        driftZ: (Math.random() - 0.5) * 0.35,
+        spin: (Math.random() - 0.5) * 1.4
+      };
+      boilerGroup.add(puff);
+      steamPuffs.push(puff);
+    }
+
+    // -------------------------------------------------------------------------
+    // 5D. MATHEMATICALLY MESHED COUNTER-ROTATING FLANK GEARS & WIND-UP KEY
+    // -------------------------------------------------------------------------
+    const animatedGears = [];
+    const gearModule = 0.072;
+
+    // 3-gear train on BOTH port (-Z) and starboard (+Z) flanks
+    // Pitch radius r = module * teeth / 2; center distance = r1 + r2
+    // Exact tooth-to-valley interlocking phase: phi2 = angle12*(1 + z1/z2) + PI - PI/z2
+    const z1 = 16, z2 = 10, z3 = 12;
+    const r1 = (gearModule * z1) / 2;
+    const r2 = (gearModule * z2) / 2;
+    const r3 = (gearModule * z3) / 2;
+
+    const g1Pos = new THREE.Vector2(-0.18, -0.14);
+    const angle12 = 0.24;
+    const g2Pos = new THREE.Vector2(
+      g1Pos.x + Math.cos(angle12) * (r1 + r2 + 0.004),
+      g1Pos.y + Math.sin(angle12) * (r1 + r2 + 0.004)
+    );
+    const angle13 = Math.PI - 0.28;
+    const g3Pos = new THREE.Vector2(
+      g1Pos.x + Math.cos(angle13) * (r1 + r3 + 0.004),
+      g1Pos.y + Math.sin(angle13) * (r1 + r3 + 0.004)
+    );
+
+    const phase2 = angle12 * (1 + z1 / z2) + Math.PI - Math.PI / z2;
+    const phase3 = angle13 * (1 + z1 / z3) + Math.PI - Math.PI / z3;
+
+    for (const side of [-1, 1]) {
+      const zFace = side * 1.24;
+
+      const mountBar = new THREE.Mesh(new THREE.BoxGeometry(2.45, 0.14, 0.08), matAgedBrass);
+      mountBar.position.set(-0.12, -0.02, side * 1.15);
+      gondolaGroup.add(mountBar);
+
+      const gear1 = createGearMesh(z1, gearModule, 0.085, 0.14, 6, matBrass);
+      gear1.position.set(g1Pos.x, g1Pos.y, zFace);
+      gondolaGroup.add(gear1);
+
+      const gear2 = createGearMesh(z2, gearModule, 0.08, 0.10, 5, matCopper);
+      gear2.position.set(g2Pos.x, g2Pos.y, zFace);
+      gear2.rotation.z = phase2;
+      gondolaGroup.add(gear2);
+
+      const gear3 = createGearMesh(z3, gearModule, 0.08, 0.11, 5, matAgedBrass);
+      gear3.position.set(g3Pos.x, g3Pos.y, zFace);
+      gear3.rotation.z = phase3;
+      gondolaGroup.add(gear3);
+
+      animatedGears.push(
+        { mesh: gear1, ratio: 1.0, phase: 0 },
+        { mesh: gear2, ratio: -(z1 / z2), phase: phase2 },
+        { mesh: gear3, ratio: -(z1 / z3), phase: phase3 }
+      );
+    }
+
+    // Stern Clockwork Wind-Up Key (-X)
+    const windupKeyGroup = new THREE.Group();
+    windupKeyGroup.position.set(-3.12, 0.04, 0);
+    gondolaGroup.add(windupKeyGroup);
+
+    const keyShaft = new THREE.Mesh(new THREE.CylinderGeometry(0.065, 0.085, 0.78, 14), matBrass);
+    keyShaft.rotation.z = Math.PI / 2;
+    keyShaft.position.x = -0.36;
+    keyShaft.castShadow = true;
+    windupKeyGroup.add(keyShaft);
+
+    const keyCollar = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.16, 0.14, 16), matAgedBrass);
+    keyCollar.rotation.z = Math.PI / 2;
+    keyCollar.position.x = -0.04;
+    windupKeyGroup.add(keyCollar);
+
+    for (const s of [-1, 1]) {
+      const bow = new THREE.Mesh(new THREE.TorusGeometry(0.28, 0.052, 12, 24), matBrass);
+      bow.position.set(-0.92, s * 0.25, 0);
+      bow.castShadow = true;
+      windupKeyGroup.add(bow);
+    }
+    const bowCenter = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 0.12, 14), matBrass);
+    bowCenter.rotation.x = Math.PI / 2;
+    bowCenter.position.set(-0.76, 0, 0);
+    windupKeyGroup.add(bowCenter);
+
+    // Articulated Rear Rudder
+    const rudderPivot = new THREE.Group();
+    rudderPivot.position.set(-2.98, -0.36, 0);
+    gondolaGroup.add(rudderPivot);
+
+    const rudderPost = new THREE.Mesh(new THREE.CylinderGeometry(0.036, 0.036, 0.98, 10), matDarkTimber);
+    rudderPost.position.y = -0.16;
+    rudderPivot.add(rudderPost);
+
+    const rudderShape = new THREE.Shape();
+    rudderShape.moveTo(0, 0.32);
+    rudderShape.lineTo(-0.82, 0.18);
+    rudderShape.quadraticCurveTo(-0.96, -0.22, -0.68, -0.58);
+    rudderShape.lineTo(0, -0.62);
+    rudderShape.closePath();
+    const rudderBlade = new THREE.Mesh(
+      new THREE.ExtrudeGeometry(rudderShape, { depth: 0.04, bevelEnabled: true, bevelSize: 0.01, bevelThickness: 0.01 }),
+      matBurgundyFin
+    );
+    rudderBlade.position.z = -0.02;
+    rudderBlade.castShadow = true;
+    rudderPivot.add(rudderBlade);
+
+    // -------------------------------------------------------------------------
+    // 5E. OUTRIGGER WOODEN PROPELLERS WITH SPEED-SENSITIVE BLUR DISCS
+    // -------------------------------------------------------------------------
+    const propellers = [];
+    const blurDiscs = [];
+    const propBlurTex = createPropBlurTexture();
+
+    for (const side of [-1, 1]) {
+      const outrigger = new THREE.Group();
+      outrigger.position.set(0.32, 0.14, side * 1.15);
+      gondolaGroup.add(outrigger);
+
+      const strutMain = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.055, 1.32, 10), matBrass);
+      strutMain.rotation.x = Math.PI / 2;
+      strutMain.position.set(0, 0, side * 0.64);
+      strutMain.castShadow = true;
+      outrigger.add(strutMain);
+
+      const strutDiag = createCable(
+        new THREE.Vector3(-0.45, -0.34, 0),
+        new THREE.Vector3(0, 0, side * 1.18),
+        0.022,
+        matAgedBrass
+      );
+      outrigger.add(strutDiag);
+
+      const nacelle = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.18, 0.62, 16), matCopper);
+      nacelle.rotation.z = Math.PI / 2;
+      nacelle.position.set(0, 0, side * 1.32);
+      nacelle.castShadow = true;
+      outrigger.add(nacelle);
+
+      const spinner = new THREE.Mesh(new THREE.ConeGeometry(0.14, 0.24, 16), matBrass);
+      spinner.rotation.z = -Math.PI / 2;
+      spinner.position.set(0.42, 0, side * 1.32);
+      outrigger.add(spinner);
+
+      const propPivot = new THREE.Group();
+      propPivot.position.set(0.36, 0, side * 1.32);
+      outrigger.add(propPivot);
+
+      for (let b = 0; b < 2; b++) {
+        const bladeWrap = new THREE.Group();
+        bladeWrap.rotation.x = b * Math.PI;
+
+        const blade = new THREE.Mesh(new THREE.BoxGeometry(0.032, 1.05, 0.16), matMahogany);
+        blade.position.y = 0.52;
+        blade.rotation.y = 0.28;
+        blade.scale.set(1, 1, 0.85);
+        blade.castShadow = true;
+        bladeWrap.add(blade);
+
+        const brassTip = new THREE.Mesh(new THREE.BoxGeometry(0.036, 0.14, 0.14), matBrass);
+        brassTip.position.y = 0.99;
+        brassTip.rotation.y = 0.28;
+        bladeWrap.add(brassTip);
+
+        propPivot.add(bladeWrap);
+      }
+
+      const blurMat = new THREE.MeshBasicMaterial({
+        map: propBlurTex,
+        transparent: true,
+        opacity: 0.45,
+        depthWrite: false,
+        side: THREE.DoubleSide
+      });
+      const blurDisc = new THREE.Mesh(new THREE.CircleGeometry(1.06, 28), blurMat);
+      blurDisc.rotation.y = Math.PI / 2;
+      blurDisc.position.set(0.36, 0, side * 1.32);
+      outrigger.add(blurDisc);
+
+      propellers.push({ pivot: propPivot, dir: side });
+      blurDiscs.push(blurDisc);
+    }
+
+    // -------------------------------------------------------------------------
+    // 5F. DIRIGIBLE ENVELOPE, STABILIZING FINS & CROSS-BRACED RIGGING
+    // -------------------------------------------------------------------------
+    const envelopeGroup = new THREE.Group();
+    envelopeGroup.position.set(-0.15, 4.35, 0);
+    airshipRoot.add(envelopeGroup);
+
+    const lathePts = [];
+    const envLen = 5.4;
+    const envMaxR = 2.02;
+    for (let i = 0; i <= 40; i++) {
+      const t = i / 40;
+      const y = (t * 2 - 1) * envLen;
+      const base = Math.sin(t * Math.PI);
+      const fullness = 0.82 + 0.34 * Math.sin(t * Math.PI * 0.85);
+      const r = Math.max(0.001, Math.pow(base, 0.66) * envMaxR * fullness);
+      lathePts.push(new THREE.Vector2(r, y));
+    }
+    const envGeo = new THREE.LatheGeometry(lathePts, 32);
+    envGeo.rotateZ(-Math.PI / 2);
+    const envelopeMesh = new THREE.Mesh(envGeo, matEnvelope);
+    envelopeMesh.castShadow = true;
+    envelopeMesh.receiveShadow = true;
+    envelopeGroup.add(envelopeMesh);
+
+    const noseCap = new THREE.Mesh(new THREE.SphereGeometry(0.42, 18, 12), matBrass);
+    noseCap.scale.set(0.6, 1, 1);
+    noseCap.position.set(envLen - 0.14, 0, 0);
+    envelopeGroup.add(noseCap);
+
+    const noseSpire = new THREE.Mesh(new THREE.ConeGeometry(0.09, 0.72, 12), matBrass);
+    noseSpire.rotation.z = -Math.PI / 2;
+    noseSpire.position.set(envLen + 0.34, 0, 0);
+    envelopeGroup.add(noseSpire);
+
+    const tailCap = new THREE.Mesh(new THREE.ConeGeometry(0.32, 0.56, 16), matBrass);
+    tailCap.rotation.z = Math.PI / 2;
+    tailCap.position.set(-envLen - 0.1, 0, 0);
+    envelopeGroup.add(tailCap);
+
+    for (const rx of [-2.8, -0.9, 1.0, 2.9]) {
+      const t = (rx / envLen + 1) * 0.5;
+      const base = Math.sin(t * Math.PI);
+      const fullness = 0.82 + 0.34 * Math.sin(t * Math.PI * 0.85);
+      const r = Math.pow(base, 0.66) * envMaxR * fullness + 0.025;
+      const ribRing = new THREE.Mesh(new THREE.TorusGeometry(r, 0.032, 8, 36), matAgedBrass);
+      ribRing.rotation.y = Math.PI / 2;
+      ribRing.position.x = rx;
+      envelopeGroup.add(ribRing);
+    }
+
+    const finShape = new THREE.Shape();
+    finShape.moveTo(0, 0);
+    finShape.lineTo(-1.95, 0.25);
+    finShape.quadraticCurveTo(-2.15, 0.95, -1.65, 1.48);
+    finShape.lineTo(-0.35, 1.32);
+    finShape.quadraticCurveTo(0.15, 0.65, 0, 0);
+
+    const finGeo = new THREE.ExtrudeGeometry(finShape, {
+      depth: 0.05,
+      bevelEnabled: true,
+      bevelThickness: 0.015,
+      bevelSize: 0.015
+    });
+    finGeo.translate(0, 0, -0.025);
+
+    for (let f = 0; f < 4; f++) {
+      const finWrap = new THREE.Group();
+      finWrap.position.set(-2.95, 0, 0);
+      finWrap.rotation.x = (f * Math.PI) / 2;
+
+      const finMesh = new THREE.Mesh(finGeo, f % 2 === 0 ? matBurgundyFin : matCanvasFin);
+      finMesh.position.y = 0.92;
+      finMesh.castShadow = true;
+      finWrap.add(finMesh);
+
+      const spar = new THREE.Mesh(new THREE.CylinderGeometry(0.028, 0.028, 1.48, 8), matDarkTimber);
+      spar.position.set(-1.0, 2.24, 0);
+      spar.rotation.z = Math.PI * 0.46;
+      finWrap.add(spar);
+
+      envelopeGroup.add(finWrap);
+    }
+
+    const rigAttachTop = [
+      new THREE.Vector3(-2.6, 3.02, -1.38),
+      new THREE.Vector3(-0.7, 2.66, -1.78),
+      new THREE.Vector3(1.1, 2.68, -1.76),
+      new THREE.Vector3(2.7, 3.12, -1.32)
+    ];
+    const rigAttachBot = [
+      new THREE.Vector3(-2.0, 0.56, -0.82),
+      new THREE.Vector3(-0.6, 0.52, -1.08),
+      new THREE.Vector3(0.8, 0.54, -1.06),
+      new THREE.Vector3(1.9, 0.62, -0.82)
+    ];
+
+    for (const side of [-1, 1]) {
+      const tops = rigAttachTop.map(p => new THREE.Vector3(p.x, p.y, p.z * side));
+      const bots = rigAttachBot.map(p => new THREE.Vector3(p.x, p.y, p.z * side));
+
+      const spreaderCurve = new THREE.CatmullRomCurve3(tops);
+      airshipRoot.add(new THREE.Mesh(new THREE.TubeGeometry(spreaderCurve, 24, 0.036, 8, false), matDarkTimber));
+
+      for (let i = 0; i < tops.length; i++) {
+        airshipRoot.add(createCable(tops[i], bots[i], 0.015, matRope));
+        if (i < tops.length - 1) {
+          airshipRoot.add(createCable(tops[i], bots[i + 1], 0.011, matRope));
+          airshipRoot.add(createCable(tops[i + 1], bots[i], 0.011, matRope));
+        }
+      }
+    }
+
+    // =========================================================================
+    // 6. CAPYBARA PILOT (Sculpted Anatomy, Aviator Goggles & 11-Segment Scarf)
+    // =========================================================================
+    const capybaraGroup = new THREE.Group();
+    capybaraGroup.position.set(0.38, 0.42, 0);
+    gondolaGroup.add(capybaraGroup);
+
+    const furTex = createCapybaraFurTexture();
+    const matFur = new THREE.MeshStandardMaterial({
+      map: furTex,
+      roughness: 0.92,
+      metalness: 0.0
+    });
+    const matDarkFur = new THREE.MeshStandardMaterial({
+      color: 0x4b311c,
+      roughness: 0.94,
+      metalness: 0.0
+    });
+    const matInnerEar = new THREE.MeshStandardMaterial({
+      color: 0x6b4736,
+      roughness: 0.88
+    });
+    const matSnout = new THREE.MeshStandardMaterial({
+      color: 0x3b2618,
+      roughness: 0.72
+    });
+
+    // Chunky Barrel Torso & Haunches
+    const torso = new THREE.Mesh(new THREE.SphereGeometry(0.46, 26, 22), matFur);
+    torso.scale.set(0.95, 1.18, 0.92);
+    torso.position.set(-0.04, 0.14, 0);
+    torso.rotation.z = -0.14;
+    torso.castShadow = true;
+    torso.receiveShadow = true;
+    capybaraGroup.add(torso);
+
+    const haunches = new THREE.Mesh(new THREE.SphereGeometry(0.42, 22, 18), matFur);
+    haunches.scale.set(1.05, 0.78, 1.0);
+    haunches.position.set(-0.06, -0.24, 0);
+    haunches.castShadow = true;
+    capybaraGroup.add(haunches);
+
+    const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.36, 0.34, 18), matFur);
+    neck.position.set(0.06, 0.56, 0);
+    neck.rotation.z = -0.18;
+    capybaraGroup.add(neck);
+
+    // Head Group
+    const capyHead = new THREE.Group();
+    capyHead.position.set(0.14, 0.76, 0);
+    capybaraGroup.add(capyHead);
+
+    const cranium = new THREE.Mesh(new THREE.SphereGeometry(0.32, 24, 20), matFur);
+    cranium.scale.set(1.22, 0.92, 0.96);
+    cranium.position.set(-0.02, 0.04, 0);
+    cranium.castShadow = true;
+    capyHead.add(cranium);
+
+    const muzzle = new THREE.Mesh(new THREE.BoxGeometry(0.44, 0.30, 0.34), matFur);
+    muzzle.position.set(0.26, -0.02, 0);
+    muzzle.rotation.z = -0.06;
+    muzzle.castShadow = true;
+    capyHead.add(muzzle);
+
+    const muzzleCap = new THREE.Mesh(new THREE.SphereGeometry(0.21, 20, 16), matFur);
+    muzzleCap.scale.set(0.95, 0.86, 0.94);
+    muzzleCap.position.set(0.36, -0.02, 0);
+    capyHead.add(muzzleCap);
+
+    const nosePad = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.14, 0.24), matSnout);
+    nosePad.position.set(0.50, 0.02, 0);
+    capyHead.add(nosePad);
+
+    for (const nz of [-0.075, 0.075]) {
+      const nostril = new THREE.Mesh(
+        new THREE.SphereGeometry(0.026, 10, 10),
+        new THREE.MeshStandardMaterial({ color: 0x1a100a, roughness: 0.5 })
+      );
+      nostril.scale.set(0.7, 1.1, 0.85);
+      nostril.position.set(0.545, 0.045, nz);
+      capyHead.add(nostril);
+    }
+
+    const philtrum = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.08, 0.022), matSnout);
+    philtrum.position.set(0.515, -0.07, 0);
+    capyHead.add(philtrum);
+
+    const chin = new THREE.Mesh(new THREE.SphereGeometry(0.14, 16, 12), matDarkFur);
+    chin.scale.set(1.15, 0.55, 0.92);
+    chin.position.set(0.34, -0.14, 0);
+    capyHead.add(chin);
+
+    // Serene Half-Lidded Eyes
+    const matEyeDark = new THREE.MeshStandardMaterial({ color: 0x140d08, roughness: 0.14, metalness: 0.1 });
+    for (const side of [-1, 1]) {
+      const eyeWrap = new THREE.Group();
+      eyeWrap.position.set(0.16, 0.11, side * 0.23);
+      capyHead.add(eyeWrap);
+
+      const eyeball = new THREE.Mesh(new THREE.SphereGeometry(0.056, 14, 12), matEyeDark);
+      eyeWrap.add(eyeball);
+
+      const glint = new THREE.Mesh(
+        new THREE.SphereGeometry(0.015, 8, 8),
+        new THREE.MeshBasicMaterial({ color: 0xfff8e5 })
+      );
+      glint.position.set(0.042, 0.018, side * 0.026);
+      eyeWrap.add(glint);
+
+      const eyelid = new THREE.Mesh(
+        new THREE.SphereGeometry(0.063, 14, 10, 0, Math.PI * 2, 0, Math.PI * 0.52),
+        matFur
+      );
+      eyelid.rotation.z = -0.12;
+      eyelid.position.y = 0.012;
+      eyeWrap.add(eyelid);
+    }
+
+    // Small Rear-Set Rounded Capybara Ears
+    for (const side of [-1, 1]) {
+      const earGroup = new THREE.Group();
+      earGroup.position.set(-0.18, 0.24, side * 0.24);
+      earGroup.rotation.set(side * 0.25, side * 0.32, 0.28);
+
+      const outerEar = new THREE.Mesh(new THREE.SphereGeometry(0.088, 14, 12), matDarkFur);
+      outerEar.scale.set(0.55, 1.0, 0.85);
+      earGroup.add(outerEar);
+
+      const innerEar = new THREE.Mesh(new THREE.SphereGeometry(0.06, 12, 10), matInnerEar);
+      innerEar.scale.set(0.45, 0.82, 0.72);
+      innerEar.position.set(0.025, -0.01, 0);
+      earGroup.add(innerEar);
+
+      capyHead.add(earGroup);
+    }
+
+    // -------------------------------------------------------------------------
+    // AVIATOR GOGGLES (Symmetrical Brass Housings, Amber Lenses, Leather Strap)
+    // -------------------------------------------------------------------------
+    const gogglesGroup = new THREE.Group();
+    gogglesGroup.position.set(0.16, 0.11, 0);
+    capyHead.add(gogglesGroup);
+
+    const matGoggleLens = new THREE.MeshPhysicalMaterial({
+      color: 0xffb347,
+      emissive: 0x452105,
+      emissiveIntensity: 0.28,
+      roughness: 0.08,
+      metalness: 0.25,
+      clearcoat: 1.0,
+      clearcoatRoughness: 0.06,
+      transparent: true,
+      opacity: 0.82
+    });
+
+    for (const side of [-1, 1]) {
+      const cup = new THREE.Group();
+      cup.position.set(0.055, 0.0, side * 0.215);
+      // Local +Z is lens front; PI/2 faces +X, -/+0.36 angles each cup slightly outward symmetrically
+      cup.rotation.y = Math.PI / 2 - side * 0.36;
+      gogglesGroup.add(cup);
+
+      const cushion = new THREE.Mesh(new THREE.TorusGeometry(0.105, 0.024, 10, 22), matLeather);
+      cushion.position.z = -0.02;
+      cup.add(cushion);
+
+      const housing = new THREE.Mesh(new THREE.CylinderGeometry(0.108, 0.112, 0.075, 22, 1, true), matBrass);
+      housing.rotation.x = Math.PI / 2;
+      housing.position.z = 0.015;
+      cup.add(housing);
+
+      const frontRim = new THREE.Mesh(new THREE.TorusGeometry(0.108, 0.018, 10, 24), matBrass);
+      frontRim.position.z = 0.052;
+      cup.add(frontRim);
+
+      const lens = new THREE.Mesh(
+        new THREE.SphereGeometry(0.102, 18, 14, 0, Math.PI * 2, 0, Math.PI * 0.48),
+        matGoggleLens
+      );
+      lens.rotation.x = Math.PI / 2;
+      lens.scale.set(1, 1, 0.42);
+      lens.position.z = 0.036;
+      cup.add(lens);
+
+      for (let r = 0; r < 4; r++) {
+        const ra = (r / 4) * Math.PI * 2 + 0.4;
+        const rv = new THREE.Mesh(new THREE.SphereGeometry(0.012, 6, 6), matAgedBrass);
+        rv.position.set(Math.cos(ra) * 0.112, Math.sin(ra) * 0.112, 0.02);
+        cup.add(rv);
+      }
+    }
+
+    // Brass nose bridge
+    const bridgeCurve = new THREE.CatmullRomCurve3([
+      new THREE.Vector3(0.11, 0.01, -0.12),
+      new THREE.Vector3(0.18, 0.045, 0),
+      new THREE.Vector3(0.11, 0.01, 0.12)
+    ]);
+    gogglesGroup.add(new THREE.Mesh(new THREE.TubeGeometry(bridgeCurve, 12, 0.016, 8, false), matBrass));
+
+    // Stitched Leather Head Strap wrapping around rear cranium
+    const strapCurve = new THREE.CatmullRomCurve3([
+      new THREE.Vector3(0.0, 0.0, -0.29),
+      new THREE.Vector3(-0.22, -0.02, -0.33),
+      new THREE.Vector3(-0.48, -0.04, -0.24),
+      new THREE.Vector3(-0.58, -0.05, 0.0),
+      new THREE.Vector3(-0.48, -0.04, 0.24),
+      new THREE.Vector3(-0.22, -0.02, 0.33),
+      new THREE.Vector3(0.0, 0.0, 0.29)
+    ]);
+    gogglesGroup.add(new THREE.Mesh(new THREE.TubeGeometry(strapCurve, 32, 0.028, 8, false), matLeather));
+
+    const buckle = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.075, 0.09), matBrass);
+    buckle.position.set(-0.59, -0.05, 0);
+    gogglesGroup.add(buckle);
+
+    // Forearms & Webbed Paws Resting on Helm
+    for (const side of [-1, 1]) {
+      const armCurve = new THREE.CatmullRomCurve3([
+        new THREE.Vector3(0.12, 0.26, side * 0.34),
+        new THREE.Vector3(0.36, 0.18, side * 0.33),
+        new THREE.Vector3(0.56, 0.14, side * 0.28)
+      ]);
+      const arm = new THREE.Mesh(new THREE.TubeGeometry(armCurve, 12, 0.095, 10, false), matFur);
+      arm.castShadow = true;
+      capybaraGroup.add(arm);
+
+      const paw = new THREE.Mesh(new THREE.SphereGeometry(0.095, 14, 12), matDarkFur);
+      paw.scale.set(1.2, 0.72, 0.95);
+      paw.position.set(0.58, 0.12, side * 0.28);
+      capybaraGroup.add(paw);
+    }
+
+    // -------------------------------------------------------------------------
+    // 11-SEGMENT FLUTTERING CRIMSON AVIATOR SCARF
+    // -------------------------------------------------------------------------
+    const scarfCollar = new THREE.Mesh(new THREE.TorusGeometry(0.32, 0.072, 10, 22), matScarf);
+    scarfCollar.rotation.x = Math.PI / 2;
+    scarfCollar.rotation.y = 0.16;
+    scarfCollar.position.set(0.06, 0.56, 0);
+    scarfCollar.castShadow = true;
+    capybaraGroup.add(scarfCollar);
+
+    const scarfKnot = new THREE.Mesh(new THREE.SphereGeometry(0.095, 12, 10), matScarf);
+    scarfKnot.position.set(-0.24, 0.52, -0.14);
+    capybaraGroup.add(scarfKnot);
+
+    const scarfSegments = [];
+    let parentSeg = capybaraGroup;
+    const segLen = 0.145;
+    for (let i = 0; i < 11; i++) {
+      const segPivot = new THREE.Group();
+      if (i === 0) {
+        segPivot.position.set(-0.26, 0.52, -0.15);
+      } else {
+        segPivot.position.set(-segLen, 0, 0);
+      }
+
+      const width = 0.16 + (i / 11) * 0.07;
+      const piece = new THREE.Mesh(
+        new THREE.BoxGeometry(segLen + 0.015, 0.022, width),
+        matScarf
+      );
+      piece.position.x = -segLen * 0.5;
+      piece.castShadow = true;
+      segPivot.add(piece);
+
+      if (i === 10) {
+        for (let f = -2; f <= 2; f++) {
+          const tassel = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.015, 0.022), matBrass);
+          tassel.position.set(-segLen - 0.03, 0, f * 0.044);
+          segPivot.add(tassel);
+        }
+      }
+
+      parentSeg.add(segPivot);
+      scarfSegments.push(segPivot);
+      parentSeg = segPivot;
+    }
+
+    // =========================================================================
+    // 7. DRIFTING VOLUMETRIC GOLDEN-HOUR CLOUDS & WIND STREAKS
+    // =========================================================================
+    const clouds = [];
+    const cloudMat = new THREE.MeshStandardMaterial({
+      color: 0xffebd2,
+      emissive: 0x6b3a24,
+      emissiveIntensity: 0.18,
+      roughness: 0.96,
+      metalness: 0.0
+    });
+
+    function createCloudCluster(scale = 1) {
+      const g = new THREE.Group();
+      const puffCount = 5 + Math.floor(Math.random() * 4);
+      for (let i = 0; i < puffCount; i++) {
+        const r = (1.1 + Math.random() * 1.35) * scale;
+        const puff = new THREE.Mesh(new THREE.IcosahedronGeometry(r, 2), cloudMat);
+        puff.position.set(
+          (i - puffCount / 2) * 1.2 * scale + (Math.random() - 0.5) * 0.9 * scale,
+          (Math.random() - 0.35) * 0.85 * scale,
+          (Math.random() - 0.5) * 1.4 * scale
+        );
+        puff.scale.set(1.25, 0.72, 1.05);
+        g.add(puff);
+      }
+      return g;
+    }
+
+    for (let i = 0; i < 24; i++) {
+      const scale = 0.75 + Math.random() * 1.75;
+      const cloud = createCloudCluster(scale);
+      const sideBias = Math.random() < 0.72 ? (Math.random() < 0.5 ? -1 : 1) : 0;
+      cloud.position.set(
+        (Math.random() - 0.5) * 110,
+        -12 + Math.random() * 24,
+        sideBias === 0
+          ? (Math.random() - 0.5) * 18
+          : sideBias * (13 + Math.random() * 42)
+      );
+      if (Math.abs(cloud.position.z) < 9 && cloud.position.y > -4 && cloud.position.y < 9) {
+        cloud.position.y = -8 - Math.random() * 7;
+      }
+      cloud.userData = { speed: 1.4 + Math.random() * 2.4 };
+      scene.add(cloud);
+      clouds.push(cloud);
+    }
+
+    const windStreaks = [];
+    const streakMat = new THREE.MeshBasicMaterial({
+      color: 0xffe6ba,
+      transparent: true,
+      opacity: 0.24
+    });
+    for (let i = 0; i < 22; i++) {
+      const streak = new THREE.Mesh(
+        new THREE.BoxGeometry(2.4 + Math.random() * 3.2, 0.018, 0.018),
+        streakMat
+      );
+      streak.position.set(
+        (Math.random() - 0.5) * 48,
+        -4 + Math.random() * 13,
+        (Math.random() - 0.5) * 26
+      );
+      streak.userData = { speed: 11 + Math.random() * 9 };
+      scene.add(streak);
+      windStreaks.push(streak);
+    }
+
+    // =========================================================================
+    // 8. CAMERA PRESETS & HUD INTERACTIVITY
+    // =========================================================================
+    const presets = {
+      full: {
+        pos: new THREE.Vector3(10.8, 5.2, 13.8),
+        target: new THREE.Vector3(0.2, 1.85, 0)
+      },
+      captain: {
+        pos: new THREE.Vector3(2.95, 2.25, 2.75),
+        target: new THREE.Vector3(0.55, 1.02, 0.0)
+      },
+      clockwork: {
+        pos: new THREE.Vector3(-0.35, 0.55, 6.45),
+        target: new THREE.Vector3(-0.25, 0.12, 0.35)
+      }
+    };
+
+    let camTransition = null;
+    const presetButtons = document.querySelectorAll('[data-preset]');
+
+    function activatePreset(key) {
+      const p = presets[key];
+      if (!p) return;
+      camTransition = {
+        startPos: camera.position.clone(),
+        endPos: p.pos.clone(),
+        startTarget: controls.target.clone(),
+        endTarget: p.target.clone(),
+        t: 0
+      };
+      presetButtons.forEach(b => b.classList.toggle('active', b.dataset.preset === key));
+    }
+
+    presetButtons.forEach(btn => {
+      btn.addEventListener('click', () => activatePreset(btn.dataset.preset));
+    });
+
+    controls.addEventListener('start', () => {
+      camTransition = null;
+    });
+
+    let throttle = 0.65;
+    let isPlaying = true;
+
+    const throttleSlider = document.getElementById('throttle-slider');
+    const throttleReadout = document.getElementById('throttle-readout');
+    const psiReadout = document.getElementById('psi-readout');
+    const knotReadout = document.getElementById('knot-readout');
+    const playPauseBtn = document.getElementById('play-pause-btn');
+    const hud = document.getElementById('hud');
+    const hudHeader = document.getElementById('hud-header');
+
+    function updateTelemetryUI() {
+      const pct = Math.round(throttle * 100);
+      throttleReadout.textContent = `${pct}%`;
+      psiReadout.textContent = `${Math.round(14 + throttle * 52)} PSI`;
+      knotReadout.textContent = `${(throttle * 28.0).toFixed(1)} kt`;
+    }
+
+    throttleSlider.addEventListener('input', (e) => {
+      throttle = parseFloat(e.target.value) / 100;
+      updateTelemetryUI();
+    });
+
+    function togglePlayPause() {
+      isPlaying = !isPlaying;
+      playPauseBtn.textContent = isPlaying ? 'Pause Clockwork' : 'Resume Clockwork';
+    }
+
+    playPauseBtn.addEventListener('click', togglePlayPause);
+    hudHeader.addEventListener('click', () => hud.classList.toggle('collapsed'));
+
+    window.addEventListener('keydown', (e) => {
+      if (e.code === 'Space') {
+        e.preventDefault();
+        togglePlayPause();
+      } else if (e.key === '1') {
+        activatePreset('full');
+      } else if (e.key === '2') {
+        activatePreset('captain');
+      } else if (e.key === '3') {
+        activatePreset('clockwork');
+      }
+    });
+
+    updateTelemetryUI();
+
+    // =========================================================================
+    // 9. ANIMATION LOOP
+    // =========================================================================
+    const clock = new THREE.Clock();
+    let simTime = 0;
+    let gearAngle = 0;
+
+    function animate() {
+      requestAnimationFrame(animate);
+      const dt = Math.min(clock.getDelta(), 0.05);
+
+      if (camTransition) {
+        camTransition.t = Math.min(1, camTransition.t + dt * 1.85);
+        const ease = 1 - Math.pow(1 - camTransition.t, 3);
+        camera.position.lerpVectors(camTransition.startPos, camTransition.endPos, ease);
+        controls.target.lerpVectors(camTransition.startTarget, camTransition.endTarget, ease);
+        if (camTransition.t >= 1) camTransition = null;
+      }
+
+      if (isPlaying) {
+        simTime += dt;
+        const driveRate = 0.25 + throttle * 2.4;
+        gearAngle += dt * driveRate;
+
+        // 1. Buoyant Dirigible Bobbing, Roll & Pitch
+        airshipRoot.position.y = Math.sin(simTime * 0.95) * 0.24;
+        airshipRoot.rotation.z = Math.sin(simTime * 0.72) * 0.028 + (throttle - 0.5) * 0.035;
+        airshipRoot.rotation.x = Math.cos(simTime * 0.58) * 0.022;
+
+        // 2. Interlocking Counter-Rotating Flank Gears
+        for (const g of animatedGears) {
+          g.mesh.rotation.z = g.phase + gearAngle * g.ratio;
+        }
+
+        // 3. Stern Brass Wind-Up Key
+        windupKeyGroup.rotation.x = gearAngle * 0.42;
+
+        // 4. Outrigger Propellers & Speed-Sensitive Blur Discs
+        const propSpin = (1.5 + throttle * 26.0) * dt;
+        for (const p of propellers) {
+          p.pivot.rotation.x += propSpin * p.dir;
+        }
+        const blurAlpha = THREE.MathUtils.clamp((throttle - 0.15) * 0.95, 0, 0.72);
+        for (const d of blurDiscs) {
+          d.material.opacity = blurAlpha;
+          d.rotation.x += propSpin * 0.3;
+        }
+
+        // 5. Cockpit Helm Wheel, Rudder, Throttle Lever & Gauges
+        const steer = Math.sin(simTime * 0.8) * 0.24;
+        helmWheel.rotation.z = steer * 1.4;
+        rudderPivot.rotation.y = -steer * 0.9;
+
+        const targetLeverAngle = (throttle - 0.5) * -1.2;
+        throttleLeverPivot.rotation.z = THREE.MathUtils.lerp(throttleLeverPivot.rotation.z, targetLeverAngle, dt * 6);
+
+        gaugeNeedles[0].rotation.z = -1.9 + throttle * 3.4 + Math.sin(simTime * 6.5) * 0.05;
+        gaugeNeedles[1].rotation.z = -0.3 + Math.sin(simTime * 0.95) * 0.22;
+        gaugeNeedles[2].rotation.z = -2.1 + throttle * 3.7 + Math.sin(simTime * 3.1) * 0.04;
+
+        // 6. Capybara Subtle Head Look & 11-Segment Fluttering Scarf
+        capyHead.rotation.y = Math.sin(simTime * 0.55) * 0.12;
+        capyHead.rotation.z = Math.sin(simTime * 1.1) * 0.035;
+
+        const flutterFreq = 4.2 + throttle * 11.5;
+        const flutterAmp = 0.06 + throttle * 0.19;
+        for (let i = 0; i < scarfSegments.length; i++) {
+          const seg = scarfSegments[i];
+          const phase = simTime * flutterFreq - i * 0.58;
+          const growth = 0.45 + (i / scarfSegments.length) * 1.05;
+          seg.rotation.y = Math.sin(phase) * flutterAmp * growth;
+          seg.rotation.z = Math.cos(phase * 0.78) * (flutterAmp * 0.52) * growth - (1 - throttle) * 0.055;
+        }
+
+        // 7. Copper Boiler Firebox Flicker & Rising Steam Puffs
+        const flicker = 1.8 + throttle * 1.4 + Math.sin(simTime * 14.3) * 0.25 + Math.cos(simTime * 9.1) * 0.18;
+        matFirebox.emissiveIntensity = flicker;
+        boilerGlowLight.intensity = 1.4 + throttle * 1.4 + Math.sin(simTime * 12) * 0.2;
+
+        const steamRate = 0.22 + throttle * 0.58;
+        for (const puff of steamPuffs) {
+          puff.userData.age = (puff.userData.age + dt * steamRate) % 1;
+          const a = puff.userData.age;
+          puff.position.set(
+            -0.22 - a * (1.2 + throttle * 2.6),
+            1.78 + a * 1.55,
+            puff.userData.driftZ * a * 2.2
+          );
+          const s = 0.45 + a * 1.95;
+          puff.scale.setScalar(s);
+          puff.rotation.y += dt * puff.userData.spin;
+          puff.material.opacity = Math.sin(a * Math.PI) * (0.35 + throttle * 0.38);
+        }
+
+        // 8. Drifting Golden-Hour Clouds & Wind Streaks
+        const worldSpeed = 0.5 + throttle * 4.2;
+        for (const c of clouds) {
+          c.position.x -= dt * c.userData.speed * worldSpeed * 0.55;
+          if (c.position.x < -58) c.position.x = 58;
+        }
+
+        for (const w of windStreaks) {
+          w.position.x -= dt * w.userData.speed * (0.25 + throttle * 1.25);
+          w.material.opacity = 0.06 + throttle * 0.24;
+          if (w.position.x < -26) {
+            w.position.x = 26;
+            w.position.y = -4 + Math.random() * 13;
+          }
+        }
+      }
+
+      controls.update();
+      renderer.render(scene, camera);
+    }
+
+    animate();
+
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+  </script>
+</body>
+</html>
